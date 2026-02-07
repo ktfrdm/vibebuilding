@@ -10,6 +10,7 @@
 - **[VALUE_PROPOSITION_CANVAS.md](./product-description/VALUE_PROPOSITION_CANVAS.md)** - Value Proposition Canvas: боли, выгоды, ценностное предложение
 - **[PERSONAS.md](./product-description/PERSONAS.md)** - Персоны целевой аудитории
 - **[USER_STORIES.md](./product-description/USER_STORIES.md)** - Пользовательские истории и сценарии использования
+- **[PRODUCT_BACKLOG.md](./product-description/PRODUCT_BACKLOG.md)** - Идеи на будущее с комментариями
 
 ### Instructions (инструкции по GitHub)
 
