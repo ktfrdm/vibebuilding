@@ -56,10 +56,15 @@ python main.py
 ├── .env.example          # Пример конфигурации
 ├── .gitignore            # Игнорируемые файлы Git
 ├── main.py               # Точка входа приложения
-├── docs/                 # Документация продукта
+├── docs/                 # Документация
 │   ├── README.md         # Обзор документации
-│   ├── PRODUCT_DESCRIPTION.md  # Описание продукта
-│   ├── USER_STORIES.md   # Пользовательские истории
+│   ├── product-description/  # Описание продукта и целевая аудитория
+│   │   ├── PRODUCT_OVERVIEW.md
+│   │   ├── PERSONAS.md
+│   │   └── USER_STORIES.md
+│   ├── instructions/     # Инструкции по GitHub
+│   │   ├── GITHUB_SETUP.md
+│   │   └── GITHUB_COMMIT_INSTRUCTION.md
 │   ├── FEATURES.md       # Функциональные требования
 │   └── API.md            # Описание API
 ├── bot/                  # Исходный код приложения
