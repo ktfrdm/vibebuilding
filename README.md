@@ -61,7 +61,12 @@ python main.py
 │   ├── product-description/  # Описание продукта и целевая аудитория
 │   │   ├── PRODUCT_OVERVIEW.md
 │   │   ├── PERSONAS.md
-│   │   └── USER_STORIES.md
+│   │   ├── research/         # Исследование (гайды к интервью)
+│   │   │   └── RESEARCH_DESIGN.md
+│   │   ├── scenario/         # Сценарии (user stories, джобы)
+│   │   │   ├── USER_STORIES.md
+│   │   │   └── USER_JOBS.md
+│   │   └── ...
 │   ├── instructions/     # Инструкции по GitHub
 │   │   ├── GITHUB_SETUP.md
 │   │   └── GITHUB_COMMIT_INSTRUCTION.md
