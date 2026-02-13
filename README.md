@@ -59,13 +59,18 @@ python main.py
 ├── docs/                 # Документация
 │   ├── README.md         # Обзор документации
 │   ├── product-description/  # Описание продукта и целевая аудитория
-│   │   ├── PRODUCT_OVERVIEW.md
-│   │   ├── PERSONAS.md
-│   │   ├── research/         # Исследование (гайды к интервью)
-│   │   │   └── RESEARCH_DESIGN.md
-│   │   ├── scenario/         # Сценарии (user stories, джобы)
-│   │   │   ├── USER_STORIES.md
-│   │   │   └── USER_JOBS.md
+│   │   ├── 01. Product strategy/  # Обзор, ценностное предложение
+│   │   │   ├── PRODUCT_OVERVIEW.md
+│   │   │   └── VALUE_PROPOSITION_CANVAS.md
+│   │   ├── 02. Research/     # Персоны, дизайн и результаты исследования
+│   │   │   ├── PERSONAS.md
+│   │   │   ├── RESEARCH_DESIGN.md
+│   │   │   └── INTERVIEW_RESULTS.md
+│   │   ├── 03. Scenarios/    # Джобы и пользовательские истории
+│   │   │   ├── USER_JOBS.md
+│   │   │   └── USER_STORIES.md
+│   │   ├── 04. Backlog/      # Идеи на развитие
+│   │   │   └── PRODUCT_BACKLOG.md
 │   │   └── ...
 │   ├── instructions/     # Инструкции по GitHub
 │   │   ├── GITHUB_SETUP.md
