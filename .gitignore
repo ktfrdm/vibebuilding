@@ -26,9 +26,10 @@ env/
 ENV/
 .venv
 
-# Environment variables
+# Environment variables (токены, ключи API)
 .env
 .env.local
+docs/product-description/05. Development/.env
 
 # IDE
 .vscode/
