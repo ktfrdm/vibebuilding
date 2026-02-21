@@ -1,0 +1,76 @@
+"""Точка входа бота (python-telegram-bot)."""
+import logging
+
+from telegram import BotCommand
+from telegram.ext import (
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
+
+from bot.config import BOT_TOKEN, LOG_LEVEL
+from bot.handlers import common, notifications, organizer, participant, start
+from bot.queue import PerUserUpdateProcessor
+
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN or TELEGRAM_BOT_TOKEN not set in .env")
+
+
+async def post_init(application):
+    await application.bot.set_my_commands([
+        BotCommand(command="start", description="Сбросить и начать заново"),
+    ])
+
+
+async def error_handler(update, context):
+    logging.exception("Unhandled error: %s", context.error)
+    if update and update.effective_message:
+        await update.effective_message.reply_text("Что-то пошло не так. Нажми /start")
+    elif update and update.callback_query:
+        await update.callback_query.answer("Ошибка. Нажми /start.")
+
+
+def main():
+    processor = PerUserUpdateProcessor(max_concurrent_updates=32)
+    app = (
+        ApplicationBuilder()
+        .token(BOT_TOKEN)
+        .post_init(post_init)
+        .concurrent_updates(processor)
+        .build()
+    )
+    app.add_error_handler(error_handler)
+
+    # Порядок критичен: start (с deep link), help, callbacks, текст организатора, fallback
+    app.add_handler(CommandHandler("start", start.cmd_start))
+    app.add_handler(CommandHandler("help", common.cmd_help))
+    app.add_handler(CallbackQueryHandler(participant.slot_toggle, pattern="^slot_toggle:"))
+    app.add_handler(CallbackQueryHandler(participant.decline, pattern="^decline:"))
+    app.add_handler(CallbackQueryHandler(participant.done, pattern="^done:"))
+    app.add_handler(CallbackQueryHandler(organizer.skip_title, pattern="^skip$"))
+    app.add_handler(CallbackQueryHandler(organizer.slots_confirmed, pattern="^slots_ok$"))
+    app.add_handler(CallbackQueryHandler(organizer.slots_edit, pattern="^slots_edit$"))
+    app.add_handler(CallbackQueryHandler(organizer.choose_slot, pattern="^choose_slot:"))
+    app.add_handler(CallbackQueryHandler(organizer.place_skip, pattern="^place_skip$"))
+    app.add_handler(CallbackQueryHandler(notifications.confirm_yes, pattern="^confirm_yes:"))
+    app.add_handler(CallbackQueryHandler(notifications.confirm_no, pattern="^confirm_no:"))
+    app.add_handler(
+        MessageHandler(
+            (filters.TEXT | filters.CAPTION) & ~filters.COMMAND,
+            organizer.process_text,
+        )
+    )
+    app.add_handler(MessageHandler(filters.ALL, organizer.organizer_non_text))
+
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()

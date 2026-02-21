@@ -1,0 +1,18 @@
+---
+description: Перезапускать бота после изменений в реализации
+globs: main.py,bot/**/*.py
+alwaysApply: false
+---
+
+# Перезапуск бота
+
+После изменений в `main.py` или `bot/` — перезапустить бота через `run_bot.sh` (см. правило bot-single-instance).
+
+```bash
+./run_bot.sh
+```
+
+Запуск в фоне:
+```bash
+./run_bot.sh &
+```
