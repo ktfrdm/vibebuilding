@@ -1,4 +1,5 @@
 """Поток организатора: storage-based state (python-telegram-bot)."""
+import html
 import logging
 import random
 import string
@@ -7,10 +8,12 @@ from typing import Optional
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from bot.formatters import participant_tag
 from bot.keyboards.inline import (
     can_you_come_keyboard,
     confirm_place_keyboard,
     invite_keyboard,
+    late_join_keyboard,
     skip_keyboard,
     slots_confirm_keyboard,
 )
@@ -63,7 +66,7 @@ async def create_meeting_start(update: Update, context: ContextTypes.DEFAULT_TYP
     clear_user_state(uid)
     set_user_state(uid, "title")
     await update.message.reply_text(
-        "Как назовём нашу встречу? Например: «Кофе», «Ужин в пятницу». Можно пропустить!",
+        "💬 Как назовём нашу встречу? Например: «Кофе», «Ужин в пятницу». Можно пропустить!",
         reply_markup=skip_keyboard(),
     )
 
@@ -112,7 +115,7 @@ async def _handle_slots(update: Update, uid: int) -> None:
     result = parse_options(text)
     if not result.get("ok"):
         await update.message.reply_text(
-            "Хм, не совсем понял. Напиши варианты времени попроще, например: «суббота 12:00, 15:00, 18:00»"
+            "🤔 Хм, не совсем понял. Напиши варианты времени попроще, например: «суббота 12:00, 15:00, 18:00»"
         )
         return
     slots = result.get("slots", [])
@@ -136,7 +139,7 @@ async def _handle_slots(update: Update, uid: int) -> None:
     update_user_state(uid, slots=slots_list)
     set_user_state(uid, "slots_confirm", {"title": title, "slots": slots_list})
     lines = [f"{i+1}. {s.get('date', '')} {s.get('time', '')}".strip() for i, s in enumerate(slots_list)]
-    header = "Некоторые слоты были в прошлом — убрал. Вот что получается:\n" if past else "Отлично! Вот что получается:\n"
+    header = "Некоторые слоты были в прошлом — убрал. Вот что получается:\n" if past else "✨ Отлично! Вот что получается:\n"
     await update.message.reply_text(
         header + "\n".join(lines) + "\n\nПодходит?",
         reply_markup=slots_confirm_keyboard(),
@@ -208,13 +211,13 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     link = f"https://t.me/{username}?start=meeting_{meeting_id}"
     if query.message and query.message.chat.type in ("group", "supergroup"):
         await query.edit_message_text(
-            f"Готово! Поделись ссылкой с участниками — пусть выберут удобное время:\n{link}\n\n"
+            f"🔗 Готово! Поделись ссылкой с участниками — пусть выберут удобное время:\n{link}\n\n"
             f"{title} — когда вам удобно?",
             reply_markup=invite_keyboard(meeting_id, username),
         )
     else:
         await query.edit_message_text(
-            f"Готово! Поделись ссылкой с участниками — пусть выберут удобное время:\n{link}"
+            f"🔗 Готово! Поделись ссылкой с участниками — пусть выберут удобное время:\n{link}"
         )
     await query.answer()
 
@@ -255,7 +258,7 @@ async def choose_slot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     m.status = "time_chosen"
     set_user_state(uid, "place", {"meeting_id": meeting_id})
     await query.edit_message_text(
-        "Где собираемся? Напиши место или нажми «Пропустить» — уточните потом в чате",
+        "📍 Где собираемся? Напиши место или нажми «Пропустить» — уточните потом в чате",
         reply_markup=confirm_place_keyboard(),
     )
     await query.answer()
@@ -295,6 +298,85 @@ async def organizer_non_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("Отправь, пожалуйста, текст.")
 
 
+async def send_meeting_summary(
+    bot, meeting_id: str, chat_id: int, user_id: Optional[int] = None
+) -> None:
+    """Отправляет итоги встречи в указанный чат. Если user_id передан и не в participants — спрашивает «Придёшь?»."""
+    m = meetings.get(meeting_id)
+    if not m or m.status != "time_chosen":
+        return
+    place = m.place or "уточните в чате"
+    ask_late_join = (
+        user_id is not None and (meeting_id, user_id) not in participants
+    )
+    await _send_meeting_summary_to_chat(
+        bot, meeting_id, place, chat_id, ask_late_join=ask_late_join
+    )
+
+
+async def _send_meeting_summary_to_chat(
+    bot, meeting_id: str, place: str, chat_id: int, ask_late_join: bool = False
+) -> None:
+    """Отправляет итоги встречи в указанный чат."""
+    m = meetings.get(meeting_id)
+    if not m:
+        return
+    slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
+    slot_label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
+    coming = []
+    pending = []
+    declined_tags = []
+    for k, p in participants.items():
+        if k[0] != meeting_id:
+            continue
+        user_id = k[1]
+        tag = participant_tag(user_id, p.first_name)
+        if p.status == "declined":
+            declined_tags.append(tag)
+        elif p.status == "replied":
+            if m.chosen_slot_id in p.chosen_slot_ids:
+                coming.append(tag)
+            else:
+                pending.append(tag)
+    title_esc = html.escape(m.title)
+    place_esc = html.escape(place or "уточните в чате")
+    slot_esc = html.escape(slot_label)
+    lines = [
+        f"📋 Встречаемся!" + (f" «{title_esc}»" if m.title.strip() else ""),
+        "",
+        f"🕐 Время: {slot_esc}",
+        f"📍 Место: {place_esc}",
+        "",
+    ]
+    if coming:
+        lines.append("👍 Придут: " + ", ".join(coming))
+    if pending:
+        lines.append("❓ Ожидают ответа «Сможешь прийти?»: " + ", ".join(pending))
+    if declined_tags:
+        lines.append("👋 Не смогут: " + ", ".join(declined_tags))
+    if not coming and not pending and not declined_tags:
+        lines.append("Пока нет ответов.")
+    if ask_late_join:
+        lines.append("")
+        lines.append("Придёшь?")
+    text = "\n".join(lines)
+    reply_markup = late_join_keyboard(meeting_id) if ask_late_join else None
+    try:
+        await bot.send_message(
+            chat_id, text, parse_mode="HTML", reply_markup=reply_markup
+        )
+    except Exception:
+        pass
+
+
+async def _send_organizer_summary(bot, meeting_id: str, place: str) -> None:
+    """Отправляет организатору итоги после подтверждения места."""
+    m = meetings.get(meeting_id)
+    if not m:
+        return
+    await _send_meeting_summary_to_chat(bot, meeting_id, place, m.creator_user_id)
+
+
 async def _send_notifications(bot, meeting_id: str, place: str) -> None:
     m = meetings.get(meeting_id)
     if not m:
@@ -308,12 +390,13 @@ async def _send_notifications(bot, meeting_id: str, place: str) -> None:
         if m.chosen_slot_id in sel:
             await bot.send_message(
                 user_id,
-                f"Встречаемся! {m.title} — {slot_label}. Место: {place}",
+                f"🎉 Встречаемся! {m.title} — {slot_label}. Место: {place}",
             )
         else:
             participants[k].pending_confirm = True
             await bot.send_message(
                 user_id,
-                f"{m.title} назначена на {slot_label}. Сможешь прийти?",
+                f"📩 {m.title} назначена на {slot_label}. Сможешь прийти?",
                 reply_markup=can_you_come_keyboard(meeting_id),
             )
+    await _send_organizer_summary(bot, meeting_id, place)

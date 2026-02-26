@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Остановить старые экземпляры бота",
+      "type": "shell",
+      "command": "for i in 1 2 3 4 5; do pkill -9 -f 'main.py' 2>/dev/null; pkill -9 -f 'debugpy.*main' 2>/dev/null; sleep 3; done",
+      "windows": {
+        "command": "taskkill /F /IM python.exe 2>nul; timeout /t 5 /nobreak >nul"
+      },
+      "presentation": { "reveal": "silent", "showReuseMessage": false }
+    },
+    {
+      "label": "Запустить бота (run_bot.sh)",
+      "type": "shell",
+      "command": "./run_bot.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Остановить старые экземпляры бота"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "new" }
+    }
+  ]
+}

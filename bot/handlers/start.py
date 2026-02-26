@@ -18,7 +18,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await handle_participant_start(update, context)
         return
     await update.message.reply_text(
-        "Привет! Я помогу собрать друзей и согласовать время встречи.\n\n"
+        "👋 Привет! Я помогу собрать друзей и согласовать время встречи.\n\n"
         "Нажми «Давай соберёмся!» чтобы начать.",
         reply_markup=start_reply_keyboard(),
     )

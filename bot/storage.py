@@ -25,6 +25,7 @@ class ParticipantData:
     status: str  # replied | declined | pending
     chosen_slot_ids: list[int] = field(default_factory=list)
     pending_confirm: bool = False  # ожидание «Сможешь прийти?»
+    first_name: str = ""  # имя для уведомлений организатору
 
 
 meetings: dict[str, Meeting] = {}

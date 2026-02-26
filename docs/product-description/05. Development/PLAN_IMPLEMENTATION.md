@@ -72,7 +72,7 @@ flowchart TB
 - Python 3.9+, зависимости: `pip install -r requirements.txt`
 - Токены в `.env`: `TELEGRAM_BOT_TOKEN`, `OPENAI_API_KEY`. Файл в `.gitignore`.
 - В `config.py`: читать `BOT_TOKEN` или `TELEGRAM_BOT_TOKEN`; добавить `OPENAI_API_KEY`
-- Запуск: `python main.py` из корня проекта
+- Запуск: `./run_bot.sh` из корня проекта (скрипт останавливает старые экземпляры и запускает один)
 
 ---
 

@@ -6,9 +6,11 @@
 
 ## Запуск
 
+**Важно:** Запускайте бота **только** через `run_bot.sh` — иначе возможны конфликты при нескольких экземплярах.
+
 ```bash
 pip install -r requirements.txt
-python main.py
+./run_bot.sh
 ```
 
 Ключи загружаются из `.env` в корне или из `docs/product-description/05. Development/.env`.

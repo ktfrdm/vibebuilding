@@ -1,7 +1,27 @@
 """Точка входа бота (python-telegram-bot)."""
 import logging
+import os
+import sys
 
 from telegram import BotCommand
+
+# Блокировка: только один экземпляр бота. Запускайте через ./run_bot.sh.
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_LOCK_FILE = os.path.join(_script_dir, ".bot.lock")
+
+try:
+    import fcntl
+    _lock_fd = os.open(_LOCK_FILE, os.O_CREAT | os.O_RDWR)
+    try:
+        fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(
+            "Другой экземпляр бота уже запущен. Используйте ./run_bot.sh для перезапуска.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+except ImportError:
+    _lock_fd = None  # Windows: fcntl недоступен, пропускаем проверку
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -61,6 +81,8 @@ def main():
     app.add_handler(CallbackQueryHandler(organizer.place_skip, pattern="^place_skip$"))
     app.add_handler(CallbackQueryHandler(notifications.confirm_yes, pattern="^confirm_yes:"))
     app.add_handler(CallbackQueryHandler(notifications.confirm_no, pattern="^confirm_no:"))
+    app.add_handler(CallbackQueryHandler(participant.late_join_yes, pattern="^late_join_yes:"))
+    app.add_handler(CallbackQueryHandler(participant.late_join_no, pattern="^late_join_no:"))
     app.add_handler(
         MessageHandler(
             (filters.TEXT | filters.CAPTION) & ~filters.COMMAND,

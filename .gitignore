@@ -31,8 +31,10 @@ ENV/
 .env.local
 docs/product-description/05. Development/.env
 
-# IDE
-.vscode/
+# IDE (launch.json и tasks.json — для запуска бота через run_bot.sh)
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 .idea/
 *.swp
 *.swo
@@ -55,3 +57,6 @@ logs/
 *.tmp
 *.bak
 *.cache
+
+# Bot single-instance lock
+.bot.lock

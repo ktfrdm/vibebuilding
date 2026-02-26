@@ -5,19 +5,20 @@
 cd "$(dirname "$0")"
 
 echo "Останавливаю все экземпляры бота..."
-pkill -9 -f "python3 main.py" 2>/dev/null || true
-pkill -9 -f "python.*main.py" 2>/dev/null || true
-pkill -9 -f "Python main.py" 2>/dev/null || true
-sleep 4
-
-# Проверка: не осталось ли процессов
-RUNNING=$(pgrep -f "Python main.py" 2>/dev/null | wc -l)
-if [ "$RUNNING" -gt 0 ]; then
-  echo "Предупреждение: всё ещё запущено $RUNNING процесс(ов). Жду ещё..."
-  sleep 3
-  pkill -9 -f "Python main.py" 2>/dev/null || true
+for _ in 1 2 3 4 5; do
   pkill -9 -f "main.py" 2>/dev/null || true
-  sleep 2
+  pkill -9 -f "Python.*main" 2>/dev/null || true
+  pkill -9 -f "debugpy.*main" 2>/dev/null || true
+  sleep 3
+  RUNNING=$(pgrep -f "main.py" 2>/dev/null | wc -l)
+  [ "$RUNNING" -eq 0 ] && break
+  echo "  Ожидаю завершения ($RUNNING процесс(ов))..."
+done
+
+RUNNING=$(pgrep -f "main.py" 2>/dev/null | wc -l)
+if [ "$RUNNING" -gt 0 ]; then
+  echo "ОШИБКА: Не удалось остановить $RUNNING процесс(ов). Запустите вручную: pkill -9 -f main.py"
+  exit 1
 fi
 
 echo "Запускаю единственный экземпляр бота..."

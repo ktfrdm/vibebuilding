@@ -46,7 +46,7 @@ jobs:
             ## 🚀 Запуск
             
             ```bash
-            python main.py
+            ./run_bot.sh
             ```
           draft: false
           prerelease: false

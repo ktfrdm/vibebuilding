@@ -82,6 +82,14 @@ def can_you_come_keyboard(meeting_id: str) -> InlineKeyboardMarkup:
     ])
 
 
+def late_join_keyboard(meeting_id: str) -> InlineKeyboardMarkup:
+    """Клавиатура для нового пользователя, перешедшего по ссылке после назначения встречи."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Да, приду!", callback_data=f"late_join_yes:{meeting_id}")],
+        [InlineKeyboardButton(text="Увы, не смогу", callback_data=f"late_join_no:{meeting_id}")],
+    ])
+
+
 def invite_keyboard(meeting_id: str, bot_username: str) -> InlineKeyboardMarkup:
     link = f"https://t.me/{bot_username}?start=meeting_{meeting_id}"
     return InlineKeyboardMarkup(inline_keyboard=[
