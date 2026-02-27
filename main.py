@@ -46,6 +46,7 @@ if not BOT_TOKEN:
 async def post_init(application):
     await application.bot.set_my_commands([
         BotCommand(command="start", description="Сбросить и начать заново"),
+        BotCommand(command="svodka", description="Статус встречи"),
     ])
 
 
@@ -70,6 +71,7 @@ def main():
 
     # Порядок критичен: start (с deep link), help, callbacks, текст организатора, fallback
     app.add_handler(CommandHandler("start", start.cmd_start))
+    app.add_handler(CommandHandler("svodka", organizer.cmd_svodka))
     app.add_handler(CommandHandler("help", common.cmd_help))
     app.add_handler(CallbackQueryHandler(participant.slot_toggle, pattern="^slot_toggle:"))
     app.add_handler(CallbackQueryHandler(participant.decline, pattern="^decline:"))
@@ -83,6 +85,8 @@ def main():
     app.add_handler(CallbackQueryHandler(notifications.confirm_no, pattern="^confirm_no:"))
     app.add_handler(CallbackQueryHandler(participant.late_join_yes, pattern="^late_join_yes:"))
     app.add_handler(CallbackQueryHandler(participant.late_join_no, pattern="^late_join_no:"))
+    app.add_handler(CallbackQueryHandler(organizer.show_svodka_callback, pattern="^show_svodka:"))
+    app.add_handler(CallbackQueryHandler(organizer.choose_time_callback, pattern="^choose_time:"))
     app.add_handler(
         MessageHandler(
             (filters.TEXT | filters.CAPTION) & ~filters.COMMAND,

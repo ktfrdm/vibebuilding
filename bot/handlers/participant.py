@@ -3,12 +3,16 @@ import html
 import logging
 from typing import List, Optional
 
-from telegram import Update
+from telegram import ReplyKeyboardRemove, Update
 from telegram.ext import ContextTypes
 
 from bot.formatters import participant_tag
 from bot.handlers.organizer import send_meeting_summary
-from bot.keyboards.inline import organizer_choose_slot_keyboard, participant_slots_keyboard
+from bot.keyboards.inline import (
+    organizer_choose_slot_keyboard,
+    organizer_notification_keyboard,
+    participant_slots_keyboard,
+)
 from bot.storage import Meeting, ParticipantData, meetings, participants, participant_selection
 
 logger = logging.getLogger(__name__)
@@ -27,54 +31,57 @@ def _slot_labels(slots: list, indices: list[int]) -> str:
 
 
 async def _notify_organizer_new_response(
-    bot, meeting_id: str, participant_name: str, is_decline: bool,
-    chosen_slot_ids: Optional[List[int]] = None,
+    bot, meeting_id: str, participant_user_id: int, participant_name: str,
+    is_decline: bool, chosen_slot_ids: Optional[List[int]] = None,
 ) -> None:
     """Уведомляет организатора о новом ответе участника."""
     m = meetings.get(meeting_id)
     if not m:
         logger.warning(
-            "Уведомление организатору пропущено: встреча %s не найдена (возможно, другой экземпляр бота). Запустите только один экземпляр через run_bot.sh.",
+            "Уведомление организатору пропущено: встреча %s не найдена.",
             meeting_id,
         )
         return
     creator_id = m.creator_user_id
-    who = participant_name or "Участник"
-    bot_info = await bot.get_me()
-    username = bot_info.username or "bot"
-    link = f"https://t.me/{username}?start=meeting_{meeting_id}"
+    who_tag = participant_tag(participant_user_id, participant_name)
+    title_esc = html.escape(m.title)
     if is_decline:
-        text = f"📋 {who} не сможет прийти на «{m.title}».\n\nОткрой ссылку для сводки:\n{link}"
+        text = f"📋 {who_tag} не сможет прийти на «{title_esc}»."
     else:
         slot_text = ""
         if chosen_slot_ids:
             labels = _slot_labels(m.slots, chosen_slot_ids)
             if labels:
                 slot_text = f" Выбрал слоты: {labels}."
-        text = f"📋 {who} ответил на приглашение «{m.title}».{slot_text}\n\nОткрой ссылку для сводки:\n{link}"
+        text = f"📋 {who_tag} ответил на приглашение «{title_esc}».{slot_text}"
     try:
-        await bot.send_message(creator_id, text)
+        await bot.send_message(
+            creator_id, text, parse_mode="HTML",
+            reply_markup=organizer_notification_keyboard(meeting_id),
+        )
     except Exception as e:
         logger.warning("Не удалось отправить уведомление организатору: %s", e)
 
 
 async def _notify_organizer_late_join(
-    bot, meeting_id: str, participant_name: str, is_coming: bool
+    bot, meeting_id: str, participant_user_id: int, participant_name: str,
+    is_coming: bool,
 ) -> None:
     """Уведомляет организатора об ответе участника, перешедшего по ссылке после назначения встречи."""
     m = meetings.get(meeting_id)
     if not m:
         return
-    who = (participant_name or "Участник").strip() or "Участник"
-    bot_info = await bot.get_me()
-    username = bot_info.username or "bot"
-    link = f"https://t.me/{username}?start=meeting_{meeting_id}"
+    who_tag = participant_tag(participant_user_id, participant_name)
+    title_esc = html.escape(m.title)
     if is_coming:
-        text = f"📋 {who} ответил позже: придёт на «{m.title}».\n\nОткрой ссылку для сводки:\n{link}"
+        text = f"📋 {who_tag} ответил позже: придёт на «{title_esc}»."
     else:
-        text = f"📋 {who} ответил позже: не сможет прийти на «{m.title}».\n\nОткрой ссылку для сводки:\n{link}"
+        text = f"📋 {who_tag} ответил позже: не сможет прийти на «{title_esc}»."
     try:
-        await bot.send_message(m.creator_user_id, text)
+        await bot.send_message(
+            m.creator_user_id, text, parse_mode="HTML",
+            reply_markup=organizer_notification_keyboard(meeting_id),
+        )
     except Exception as e:
         logger.warning("Не удалось отправить уведомление организатору: %s", e)
 
@@ -107,9 +114,21 @@ async def handle_participant_start(update: Update, context: ContextTypes.DEFAULT
     else:
         key = (mid, user_id)
         participant_selection[key] = set()
+        slots_preview = ", ".join(
+            f"{s.get('date', '')} {s.get('time', '')}".strip()
+            for s in m.slots
+            if f"{s.get('date', '')} {s.get('time', '')}".strip()
+        )
+        summary = (
+            f"📅 «{html.escape(m.title)}»\n\n"
+            f"Варианты времени: {html.escape(slots_preview) or '—'}\n\n"
+            f"Отметь удобные слоты или нажми «Увы, не смогу», если не получится."
+        )
+        await update.message.reply_text("\u200b", reply_markup=ReplyKeyboardRemove(selective=True))
         await update.message.reply_text(
-            f"📅 {m.title}\n\nОтметь удобные слоты или нажми «Увы, не смогу», если не получится",
+            summary,
             reply_markup=participant_slots_keyboard(m.slots, mid, set()),
+            parse_mode="HTML",
         )
 
 
@@ -138,17 +157,15 @@ def _order_slots_by_votes(slots: list, counts: list[tuple[int, int]]) -> tuple[l
     return ordered_slots, ordered_counts, original_indices
 
 
-async def _show_organizer_summary(update: Update, context: ContextTypes.DEFAULT_TYPE, m: Meeting) -> None:
-    if not update.message:
-        return
-    if m.status == "time_chosen":
-        slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
-        label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
-        await update.message.reply_text(f"Встреча уже назначена: {label}")
-        return
+def _build_organizer_summary_text_only(m: Meeting) -> str:
+    """Текст сводки для просмотра (без кнопок выбора времени)."""
     counts = _count_slot_votes(m)
     ordered_slots, ordered_counts, idx_map = _order_slots_by_votes(m.slots, counts)
-    declined = sum(1 for k, p in participants.items() if k[0] == m.id and p.status == "declined")
+    declined_tags = [
+        participant_tag(k[1], participants[k].first_name)
+        for k, p in participants.items()
+        if k[0] == m.id and p.status == "declined"
+    ]
     title_esc = html.escape(m.title)
     lines = [f"{title_esc} — ответы:", ""]
     if ordered_counts:
@@ -157,7 +174,6 @@ async def _show_organizer_summary(update: Update, context: ContextTypes.DEFAULT_
             ok, tot = ordered_counts[i] if i < len(ordered_counts) else (0, 0)
             label = html.escape(f"{s.get('date', '')} {s.get('time', '')}".strip())
             orig_idx = idx_map[i] if i < len(idx_map) else i
-            # Кто проголосовал за этот слот
             voters = [
                 participant_tag(k[1], participants[k].first_name)
                 for k, p in participants.items()
@@ -166,15 +182,69 @@ async def _show_organizer_summary(update: Update, context: ContextTypes.DEFAULT_
             voters_str = ", ".join(voters) if voters else "—"
             lines.append(f"  • {label}: {ok}/{tot}")
             lines.append(f"    Кто: {voters_str}")
-    if declined:
-        lines.append(f"\nОтказались: {declined}")
-    # MVP: счётчик «ещё не ответили» недоступен — в participants попадают только replied/declined
-    lines.append("\n⏰ Выбери итоговое время:")
-    await update.message.reply_text(
-        "\n".join(lines),
-        reply_markup=organizer_choose_slot_keyboard(ordered_slots, m.id, ordered_counts, idx_map),
+    if declined_tags:
+        lines.append(f"\nОтказались: {', '.join(declined_tags)}")
+    return "\n".join(lines)
+
+
+def _build_organizer_choose_time_keyboard(m: Meeting) -> object:
+    """Клавиатура выбора итогового времени."""
+    counts = _count_slot_votes(m)
+    ordered_slots, ordered_counts, idx_map = _order_slots_by_votes(m.slots, counts)
+    return organizer_choose_slot_keyboard(ordered_slots, m.id, ordered_counts, idx_map)
+
+
+def _build_organizer_summary_text_and_keyboard(m: Meeting) -> tuple[str, object]:
+    """Строит текст и клавиатуру статуса организатора (голосование). Используется при /svodka и Reply «Статус»."""
+    text = _build_organizer_summary_text_only(m) + "\n\n⏰ Выбери итоговое время:"
+    markup = _build_organizer_choose_time_keyboard(m)
+    return text, markup
+
+
+async def _send_organizer_summary_to_chat(bot, chat_id: int, m: Meeting) -> None:
+    """Отправляет сводку голосования организатору в указанный чат (с кнопками выбора времени)."""
+    if m.status == "time_chosen":
+        slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
+        label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
+        await bot.send_message(chat_id, f"Встреча уже назначена: {label}")
+        return
+    text, markup = _build_organizer_summary_text_and_keyboard(m)
+    await bot.send_message(chat_id, text, reply_markup=markup, parse_mode="HTML")
+
+
+async def _send_organizer_summary_view_only(bot, chat_id: int, m: Meeting) -> None:
+    """Отправляет только текст сводки (просмотр ответивших), без кнопок выбора времени."""
+    if m.status == "time_chosen":
+        slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
+        label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
+        await bot.send_message(chat_id, f"Встреча уже назначена: {label}")
+        return
+    text = _build_organizer_summary_text_only(m)
+    await bot.send_message(chat_id, text, parse_mode="HTML")
+
+
+async def _send_organizer_choose_time(bot, chat_id: int, m: Meeting) -> None:
+    """Отправляет сообщение с кнопками выбора итогового времени."""
+    if m.status == "time_chosen":
+        slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
+        label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
+        await bot.send_message(chat_id, f"Встреча уже назначена: {label}")
+        return
+    markup = _build_organizer_choose_time_keyboard(m)
+    await bot.send_message(
+        chat_id,
+        "⏰ Выбери итоговое время:",
+        reply_markup=markup,
         parse_mode="HTML",
     )
+
+
+async def _show_organizer_summary(update: Update, context: ContextTypes.DEFAULT_TYPE, m: Meeting) -> None:
+    if not update.message:
+        return
+    chat_id = update.effective_chat.id if update.effective_chat else 0
+    await update.message.reply_text("\u200b", reply_markup=ReplyKeyboardRemove(selective=True))
+    await _send_organizer_summary_to_chat(context.bot, chat_id, m)
 
 
 async def slot_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -215,10 +285,17 @@ async def decline(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id if update.effective_user else 0
     name = (update.effective_user.first_name or "").strip() if update.effective_user else ""
     key = (meeting_id, user_id)
+    m = meetings.get(meeting_id)
     participants[key] = ParticipantData(status="declined", chosen_slot_ids=[], pending_confirm=False, first_name=name)
     participant_selection.pop(key, None)
-    await query.edit_message_text("🙏 Спасибо, что ответил!")
-    await _notify_organizer_new_response(context.bot, meeting_id, name, is_decline=True, chosen_slot_ids=None)
+    title_esc = html.escape(m.title) if m else html.escape(meeting_id)
+    await query.edit_message_text(
+        f"🙏 Спасибо, что ответил!\n\n«{title_esc}» — ты не сможешь прийти.",
+        parse_mode="HTML",
+    )
+    await _notify_organizer_new_response(
+        context.bot, meeting_id, user_id, name, is_decline=True, chosen_slot_ids=None
+    )
 
 
 async def done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -231,13 +308,19 @@ async def done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     name = (update.effective_user.first_name or "").strip() if update.effective_user else ""
     key = (meeting_id, user_id)
     sel = participant_selection.get(key, set())
+    m = meetings.get(meeting_id)
     participants[key] = ParticipantData(status="replied", chosen_slot_ids=list(sel), pending_confirm=False, first_name=name)
     participant_selection.pop(key, None)
-    await query.edit_message_text(
-        "👍 Супер, записал! Дождёмся, когда все ответят — тогда напишем, когда встречаемся"
+    chosen_labels = _slot_labels(m.slots, list(sel)) if m else ""
+    title_esc = html.escape(m.title) if m else "Встреча"
+    result = (
+        f"👍 Записал!\n\n"
+        f"«{title_esc}» — твои слоты: {html.escape(chosen_labels) or '—'}\n\n"
+        f"Дождёмся, когда все ответят — тогда напишем, когда встречаемся."
     )
+    await query.edit_message_text(result, parse_mode="HTML")
     await _notify_organizer_new_response(
-        context.bot, meeting_id, name, is_decline=False, chosen_slot_ids=list(sel)
+        context.bot, meeting_id, user_id, name, is_decline=False, chosen_slot_ids=list(sel)
     )
 
 
@@ -266,10 +349,11 @@ async def late_join_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
     slot = m.slots[m.chosen_slot_id] or {}
     slot_label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
-    await query.edit_message_text(
-        f"👍 Записал! Встречаемся — {slot_label}. Место: {m.place or 'уточните в чате'}"
-    )
-    await _notify_organizer_late_join(context.bot, meeting_id, name, is_coming=True)
+    place = m.place or "уточните в чате"
+    from bot.handlers.organizer import _format_meeting_notification
+    text = f"👍 Записал!\n\n" + _format_meeting_notification(m, slot_label, place)
+    await query.edit_message_text(text, parse_mode="HTML")
+    await _notify_organizer_late_join(context.bot, meeting_id, user_id, name, is_coming=True)
 
 
 async def late_join_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -296,4 +380,4 @@ async def late_join_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         first_name=name,
     )
     await query.edit_message_text("🙏 Спасибо, что ответил!")
-    await _notify_organizer_late_join(context.bot, meeting_id, name, is_coming=False)
+    await _notify_organizer_late_join(context.bot, meeting_id, user_id, name, is_coming=False)

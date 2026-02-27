@@ -1,6 +1,8 @@
 """Inline-клавиатуры и Reply-клавиатуры (python-telegram-bot)."""
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from typing import Optional
 
 from telegram import (
@@ -8,17 +10,19 @@ from telegram import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
 )
 
 from bot.storage import Slot
 
 
 def start_reply_keyboard() -> ReplyKeyboardMarkup:
-    """Reply-клавиатура: видимая кнопка «Давай соберёмся!» под полем ввода."""
+    """Reply-клавиатура: «Давай соберёмся!» и «Статус» для просмотра встреч."""
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Давай соберёмся!")]],
+        keyboard=[
+            [KeyboardButton(text="Давай соберёмся!"), KeyboardButton(text="📋 Статус")],
+        ],
         resize_keyboard=True,
-        one_time_keyboard=True,
     )
 
 
@@ -90,8 +94,34 @@ def late_join_keyboard(meeting_id: str) -> InlineKeyboardMarkup:
     ])
 
 
-def invite_keyboard(meeting_id: str, bot_username: str) -> InlineKeyboardMarkup:
-    link = f"https://t.me/{bot_username}?start=meeting_{meeting_id}"
+def invite_keyboard_for_organizer(bot_username: str, meeting_id: str, title: str = "") -> InlineKeyboardMarkup:
+    """Клавиатура для организатора: только переслать (без «ответить»)."""
+    mid = meeting_id.replace("m_", "") if meeting_id.startswith("m_") else meeting_id
+    link = f"https://t.me/{bot_username}?start=meeting_{mid}"
+    share_text = f"Приглашение на встречу «{title}»" if title else "Приглашение на встречу"
+    share_url = f"https://t.me/share/url?url={quote(link)}&text={quote(share_text)}"
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Ответить на приглашение", url=link)],
+        [InlineKeyboardButton(text="📤 Переслать приглашение", url=share_url)],
+    ])
+
+
+def invite_keyboard(meeting_id: str, bot_username: str, title: str = "") -> InlineKeyboardMarkup:
+    """Кнопки приглашения для участников: ответить и переслать. При пересылке сообщения кнопки сохраняются."""
+    mid = meeting_id.replace("m_", "") if meeting_id.startswith("m_") else meeting_id
+    link = f"https://t.me/{bot_username}?start=meeting_{mid}"
+    share_text = f"Приглашение на встречу «{title}»" if title else "Приглашение на встречу"
+    share_url = f"https://t.me/share/url?url={quote(link)}&text={quote(share_text)}"
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📅 Ответить на приглашение", url=link)],
+        [InlineKeyboardButton(text="📤 Переслать приглашение", url=share_url)],
+    ])
+
+
+def organizer_notification_keyboard(meeting_id: str) -> InlineKeyboardMarkup:
+    """Две кнопки под уведомлениями: просмотр ответов и выбор времени."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📋 Статус", callback_data=f"show_svodka:{meeting_id}"),
+            InlineKeyboardButton(text="⏰ Выбрать время", callback_data=f"choose_time:{meeting_id}"),
+        ],
     ])

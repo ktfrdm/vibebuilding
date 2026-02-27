@@ -1,21 +1,38 @@
 """«Да, приду!» / «Увы, не смогу» — ответ на «Сможешь прийти?»."""
+import html
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from bot.formatters import participant_tag
+from bot.keyboards.inline import organizer_notification_keyboard
 from bot.storage import meetings, participants
 
 
-async def _notify_organizer_confirm(bot, meeting_id: str, participant_name: str, confirmed: bool) -> None:
+async def _notify_organizer_confirm(
+    bot, meeting_id: str, participant_user_id: int, participant_name: str, confirmed: bool
+) -> None:
     """Уведомляет организатора об ответе на «Сможешь прийти?»."""
     m = meetings.get(meeting_id)
     if not m:
         return
-    who = (participant_name or "Участник").strip() or "Участник"
+    who_tag = participant_tag(participant_user_id, participant_name)
+    title_esc = html.escape(m.title)
     try:
         if confirmed:
-            await bot.send_message(m.creator_user_id, f"✅ {who} подтвердил(а) участие в «{m.title}».")
+            await bot.send_message(
+                m.creator_user_id,
+                f"✅ {who_tag} подтвердил(а) участие в «{title_esc}».",
+                parse_mode="HTML",
+                reply_markup=organizer_notification_keyboard(meeting_id),
+            )
         else:
-            await bot.send_message(m.creator_user_id, f"❌ {who} не сможет прийти на «{m.title}».")
+            await bot.send_message(
+                m.creator_user_id,
+                f"❌ {who_tag} не сможет прийти на «{title_esc}».",
+                parse_mode="HTML",
+                reply_markup=organizer_notification_keyboard(meeting_id),
+            )
     except Exception:
         pass
 
@@ -41,10 +58,13 @@ async def confirm_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         p.chosen_slot_ids = list(p.chosen_slot_ids) + [m.chosen_slot_id]
     slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
     slot_label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
-    await query.edit_message_text(
-        f"🎉 Встречаемся! {m.title} — {slot_label}. Место: {m.place or 'уточните в чате'}"
+    from bot.handlers.organizer import _format_meeting_notification
+    place = m.place or "уточните в чате"
+    text = _format_meeting_notification(m, slot_label, place)
+    await query.edit_message_text(text, parse_mode="HTML")
+    await _notify_organizer_confirm(
+        context.bot, meeting_id, user_id, p.first_name, confirmed=True
     )
-    await _notify_organizer_confirm(context.bot, meeting_id, p.first_name, confirmed=True)
     await query.answer()
 
 
@@ -62,5 +82,7 @@ async def confirm_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     p.pending_confirm = False
     p.status = "declined"
     await query.edit_message_text("😊 Жаль, надеемся увидеться в следующий раз!")
-    await _notify_organizer_confirm(context.bot, meeting_id, p.first_name, confirmed=False)
+    await _notify_organizer_confirm(
+        context.bot, meeting_id, user_id, p.first_name, confirmed=False
+    )
     await query.answer()
