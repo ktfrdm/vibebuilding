@@ -113,18 +113,23 @@ def main():
     )
     app.add_handler(MessageHandler(filters.ALL, organizer.organizer_non_text))
 
-    # Режим работы: polling (по умолчанию) или webhook (для Railway и прод-окружений).
-    use_webhook = os.getenv("USE_WEBHOOK", "").lower() in ("1", "true", "yes")
-    railway_url = os.getenv("RAILWAY_STATIC_URL")
-    if railway_url:
-        use_webhook = True
+    # Режим работы: polling (локально) или webhook (Railway/прод).
+    # Webhook включается: USE_WEBHOOK=1 или задан один из URL (Railway задаёт RAILWAY_PUBLIC_DOMAIN).
+    port = int(os.getenv("PORT", "8080"))
+    base_url = (
+        os.getenv("WEBHOOK_URL")
+        or os.getenv("RAILWAY_STATIC_URL")
+        or (f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}" if os.getenv("RAILWAY_PUBLIC_DOMAIN") else None)
+    )
+    use_webhook = (
+        os.getenv("USE_WEBHOOK", "").lower() in ("1", "true", "yes")
+        or bool(base_url)
+    )
 
     if use_webhook:
-        port = int(os.getenv("PORT", "8080"))
-        base_url = os.getenv("WEBHOOK_URL") or railway_url
         if not base_url:
             raise RuntimeError(
-                "WEBHOOK_URL or RAILWAY_STATIC_URL must be set in webhook mode"
+                "WEBHOOK_URL, RAILWAY_STATIC_URL or RAILWAY_PUBLIC_DOMAIN must be set in webhook mode"
             )
         base_url = base_url.rstrip("/")
         url_path = BOT_TOKEN
