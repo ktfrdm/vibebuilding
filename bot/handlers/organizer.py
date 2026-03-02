@@ -195,7 +195,6 @@ async def _handle_slots(update: Update, uid: int) -> None:
     set_user_state(uid, "slots_confirm", {"title": title, "slots": slots_list})
     lines = [f"{i+1}. {s.get('date', '')} {s.get('time', '')}".strip() for i, s in enumerate(slots_list)]
     header = "Некоторые слоты были в прошлом — убрал. Вот что получается:\n" if past else "✨ Отлично! Вот что получается:\n"
-    await update.message.reply_text("\u200b", reply_markup=ReplyKeyboardRemove(selective=True))
     await update.message.reply_text(
         header + "\n".join(lines) + "\n\nПодходит?",
         reply_markup=slots_confirm_keyboard(),
