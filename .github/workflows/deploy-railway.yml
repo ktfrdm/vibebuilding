@@ -12,19 +12,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli
-
       - name: Deploy to Railway
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          railway up --ci
+        uses: jzeuzs/action-railway@v1.1.4
+        with:
+          railway_token: ${{ secrets.RAILWAY_TOKEN }}
 
