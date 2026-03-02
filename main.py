@@ -5,12 +5,14 @@ import sys
 
 from telegram import BotCommand
 
-# Блокировка: только один экземпляр бота. Запускайте через ./run_bot.sh.
+# Блокировка: только один локальный экземпляр бота.
+# В продакшне (Railway) предполагается один процесс, поэтому блокировка по файлу безвредна.
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _LOCK_FILE = os.path.join(_script_dir, ".bot.lock")
 
 try:
     import fcntl
+
     _lock_fd = os.open(_LOCK_FILE, os.O_CREAT | os.O_RDWR)
     try:
         fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -35,7 +37,7 @@ from bot.handlers import common, notifications, organizer, participant, start
 from bot.queue import PerUserUpdateProcessor
 
 logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
+    level=getattr(LOG_LEVEL.upper(), LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
@@ -44,10 +46,12 @@ if not BOT_TOKEN:
 
 
 async def post_init(application):
-    await application.bot.set_my_commands([
-        BotCommand(command="start", description="Сбросить и начать заново"),
-        BotCommand(command="svodka", description="Статус встречи"),
-    ])
+    await application.bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Сбросить и начать заново"),
+            BotCommand(command="svodka", description="Статус встречи"),
+        ]
+    )
 
 
 async def error_handler(update, context):
@@ -73,7 +77,9 @@ def main():
     app.add_handler(CommandHandler("start", start.cmd_start))
     app.add_handler(CommandHandler("svodka", organizer.cmd_svodka))
     app.add_handler(CommandHandler("help", common.cmd_help))
-    app.add_handler(CallbackQueryHandler(participant.slot_toggle, pattern="^slot_toggle:"))
+    app.add_handler(
+        CallbackQueryHandler(participant.slot_toggle, pattern="^slot_toggle:")
+    )
     app.add_handler(CallbackQueryHandler(participant.decline, pattern="^decline:"))
     app.add_handler(CallbackQueryHandler(participant.done, pattern="^done:"))
     app.add_handler(CallbackQueryHandler(organizer.skip_title, pattern="^skip$"))
@@ -81,12 +87,24 @@ def main():
     app.add_handler(CallbackQueryHandler(organizer.slots_edit, pattern="^slots_edit$"))
     app.add_handler(CallbackQueryHandler(organizer.choose_slot, pattern="^choose_slot:"))
     app.add_handler(CallbackQueryHandler(organizer.place_skip, pattern="^place_skip$"))
-    app.add_handler(CallbackQueryHandler(notifications.confirm_yes, pattern="^confirm_yes:"))
-    app.add_handler(CallbackQueryHandler(notifications.confirm_no, pattern="^confirm_no:"))
-    app.add_handler(CallbackQueryHandler(participant.late_join_yes, pattern="^late_join_yes:"))
-    app.add_handler(CallbackQueryHandler(participant.late_join_no, pattern="^late_join_no:"))
-    app.add_handler(CallbackQueryHandler(organizer.show_svodka_callback, pattern="^show_svodka:"))
-    app.add_handler(CallbackQueryHandler(organizer.choose_time_callback, pattern="^choose_time:"))
+    app.add_handler(
+        CallbackQueryHandler(notifications.confirm_yes, pattern="^confirm_yes:")
+    )
+    app.add_handler(
+        CallbackQueryHandler(notifications.confirm_no, pattern="^confirm_no:")
+    )
+    app.add_handler(
+        CallbackQueryHandler(participant.late_join_yes, pattern="^late_join_yes:")
+    )
+    app.add_handler(
+        CallbackQueryHandler(participant.late_join_no, pattern="^late_join_no:")
+    )
+    app.add_handler(
+        CallbackQueryHandler(organizer.show_svodka_callback, pattern="^show_svodka:")
+    )
+    app.add_handler(
+        CallbackQueryHandler(organizer.choose_time_callback, pattern="^choose_time:")
+    )
     app.add_handler(
         MessageHandler(
             (filters.TEXT | filters.CAPTION) & ~filters.COMMAND,
@@ -95,7 +113,33 @@ def main():
     )
     app.add_handler(MessageHandler(filters.ALL, organizer.organizer_non_text))
 
-    app.run_polling()
+    # Режим работы: polling (по умолчанию) или webhook (для Railway и прод-окружений).
+    use_webhook = os.getenv("USE_WEBHOOK", "").lower() in ("1", "true", "yes")
+    railway_url = os.getenv("RAILWAY_STATIC_URL")
+    if railway_url:
+        use_webhook = True
+
+    if use_webhook:
+        port = int(os.getenv("PORT", "8080"))
+        base_url = os.getenv("WEBHOOK_URL") or railway_url
+        if not base_url:
+            raise RuntimeError(
+                "WEBHOOK_URL or RAILWAY_STATIC_URL must be set in webhook mode"
+            )
+        base_url = base_url.rstrip("/")
+        url_path = BOT_TOKEN
+        webhook_url = f"{base_url}/{url_path}"
+        logging.info("Starting webhook on port %s with URL %s", port, webhook_url)
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path=url_path,
+            webhook_url=webhook_url,
+            drop_pending_updates=True,
+        )
+    else:
+        logging.info("Starting bot in polling mode")
+        app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
