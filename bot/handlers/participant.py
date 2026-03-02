@@ -125,11 +125,11 @@ async def handle_participant_start(update: Update, context: ContextTypes.DEFAULT
             f"Отметь удобные слоты или нажми «Увы, не смогу», если не получится."
         )
         await update.message.reply_text(
-            "\u200b",
+            summary,
             reply_markup=ReplyKeyboardRemove(selective=True),
         )
         await update.message.reply_text(
-            summary,
+            "Отметь слоты ниже:",
             reply_markup=participant_slots_keyboard(m.slots, mid, set()),
             parse_mode="HTML",
         )
@@ -246,10 +246,6 @@ async def _show_organizer_summary(update: Update, context: ContextTypes.DEFAULT_
     if not update.message:
         return
     chat_id = update.effective_chat.id if update.effective_chat else 0
-    await update.message.reply_text(
-        "\u200b",
-        reply_markup=ReplyKeyboardRemove(selective=True),
-    )
     await _send_organizer_summary_to_chat(context.bot, chat_id, m)
 
 

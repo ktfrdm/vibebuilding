@@ -110,10 +110,6 @@ async def create_meeting_start(update: Update, context: ContextTypes.DEFAULT_TYP
     clear_user_state(uid)
     set_user_state(uid, "title")
     await update.message.reply_text(
-        "\u200b",
-        reply_markup=ReplyKeyboardRemove(selective=True),
-    )
-    await update.message.reply_text(
         "💬 Как назовём нашу встречу? Например: «Кофе», «Ужин в пятницу». Можно пропустить!",
         reply_markup=skip_keyboard(),
     )
@@ -194,10 +190,6 @@ async def _handle_slots(update: Update, uid: int) -> None:
     set_user_state(uid, "slots_confirm", {"title": title, "slots": slots_list})
     lines = [f"{i+1}. {s.get('date', '')} {s.get('time', '')}".strip() for i, s in enumerate(slots_list)]
     header = "Некоторые слоты были в прошлом — убрал. Вот что получается:\n" if past else "✨ Отлично! Вот что получается:\n"
-    await update.message.reply_text(
-        "\u200b",
-        reply_markup=ReplyKeyboardRemove(selective=True),
-    )
     await update.message.reply_text(
         header + "\n".join(lines) + "\n\nПодходит?",
         reply_markup=slots_confirm_keyboard(),
@@ -341,9 +333,6 @@ async def choose_slot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     m.status = "time_chosen"
     set_user_state(uid, "place", {"meeting_id": meeting_id})
     chat_id = query.message.chat.id if query.message else 0
-    await context.bot.send_message(
-        chat_id, " ", reply_markup=ReplyKeyboardRemove(selective=True)
-    )
     await query.edit_message_text(
         "📍 Где собираемся? Напиши место или нажми «Пропустить» — уточните потом в чате",
         reply_markup=confirm_place_keyboard(),
@@ -397,9 +386,6 @@ async def show_svodka_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if m.status == "time_chosen":
         await send_meeting_summary(context.bot, meeting_id, chat_id, user_id=uid)
     elif uid == m.creator_user_id:
-        await context.bot.send_message(
-            chat_id, " ", reply_markup=ReplyKeyboardRemove(selective=True)
-        )
         from bot.handlers.participant import _send_organizer_summary_view_only
         await _send_organizer_summary_view_only(context.bot, chat_id, m)
     else:
@@ -422,9 +408,6 @@ async def choose_time_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if m.status == "time_chosen":
         await send_meeting_summary(context.bot, meeting_id, chat_id, user_id=uid)
     elif uid == m.creator_user_id:
-        await context.bot.send_message(
-            chat_id, " ", reply_markup=ReplyKeyboardRemove(selective=True)
-        )
         from bot.handlers.participant import _send_organizer_choose_time
         await _send_organizer_choose_time(context.bot, chat_id, m)
     else:
