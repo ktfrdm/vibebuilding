@@ -109,11 +109,6 @@ async def create_meeting_start(update: Update, context: ContextTypes.DEFAULT_TYP
     uid = _user_id(update)
     clear_user_state(uid)
     set_user_state(uid, "title")
-    # Сворачиваем reply-клавиатуру перед шагом с inline-кнопками
-    await update.message.reply_text(
-        "Начинаем создавать встречу.",
-        reply_markup=ReplyKeyboardRemove(selective=True),
-    )
     await update.message.reply_text(
         "💬 Как назовём нашу встречу? Например: «Кофе», «Ужин в пятницу». Можно пропустить!",
         reply_markup=skip_keyboard(),
@@ -265,13 +260,16 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     username = bot_info.username or "bot"
     chat = query.message.chat if query.message else None
     is_group = chat and chat.type in ("group", "supergroup")
+    mid = meeting_id.replace("m_", "") if meeting_id.startswith("m_") else meeting_id
+    link = f"https://t.me/{username}?start=meeting_{mid}"
+    invite_text = (
+        f"📅 Планируется встреча «{title}».\n\n"
+        f"{link}\n\n"
+        f"Нажми кнопку ниже, чтобы ответить и выбрать удобное время."
+    )
     if is_group:
         await query.edit_message_text(
             "✅ Готово! Ниже — приглашение для участников.",
-        )
-        invite_text = (
-            f"📅 Планируется встреча «{title}».\n\n"
-            f"Ответь на приглашение — нажми кнопку ниже и выбери удобное время."
         )
         await bot.send_message(
             chat_id,
@@ -284,11 +282,17 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup=invite_keyboard_for_organizer(username, meeting_id, title),
         )
     else:
-        mid = meeting_id.replace("m_", "") if meeting_id.startswith("m_") else meeting_id
-        link = f"https://t.me/{username}?start=meeting_{mid}"
         await query.edit_message_text(
-            f"✅ Готово! Нажми кнопку ниже, чтобы отправить приглашение участникам.\n\n"
-            f"Ссылка: {link}",
+            "✅ Готово! Перешли участникам сообщение ниже (текст + ссылка + кнопка «Ответить»).",
+        )
+        await bot.send_message(
+            chat_id,
+            invite_text,
+            reply_markup=invite_keyboard(meeting_id, username, title=title),
+        )
+        await bot.send_message(
+            creator_id,
+            "✅ Перешли участникам сообщение выше. Кнопка «Ответить на приглашение» откроет выбор слотов.",
             reply_markup=invite_keyboard_for_organizer(username, meeting_id, title),
         )
     await query.answer()

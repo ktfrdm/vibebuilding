@@ -106,14 +106,11 @@ def invite_keyboard_for_organizer(bot_username: str, meeting_id: str, title: str
 
 
 def invite_keyboard(meeting_id: str, bot_username: str, title: str = "") -> InlineKeyboardMarkup:
-    """Кнопки приглашения для участников: ответить и переслать. При пересылке сообщения кнопки сохраняются."""
+    """Одна кнопка «Ответить» — при пересылке участник нажимает и выбирает слоты."""
     mid = meeting_id.replace("m_", "") if meeting_id.startswith("m_") else meeting_id
     link = f"https://t.me/{bot_username}?start=meeting_{mid}"
-    share_text = f"Приглашение на встречу «{title}»" if title else "Приглашение на встречу"
-    share_url = f"https://t.me/share/url?url={quote(link)}&text={quote(share_text)}"
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📅 Ответить на приглашение", url=link)],
-        [InlineKeyboardButton(text="📤 Переслать приглашение", url=share_url)],
     ])
 
 
