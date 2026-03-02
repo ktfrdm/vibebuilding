@@ -6,7 +6,7 @@ from typing import List, Optional
 from telegram import ReplyKeyboardRemove, Update
 from telegram.ext import ContextTypes
 
-from bot.formatters import participant_tag
+from bot.formatters import format_meeting_notification, participant_tag, shift_entities, utf16_len
 from bot.handlers.organizer import send_meeting_summary
 from bot.keyboards.inline import (
     organizer_choose_slot_keyboard,
@@ -348,11 +348,17 @@ async def late_join_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         first_name=name,
     )
     slot = m.slots[m.chosen_slot_id] or {}
-    slot_label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
     place = m.place or "уточните в чате"
-    from bot.handlers.organizer import _format_meeting_notification
-    text = f"👍 Записал!\n\n" + _format_meeting_notification(m, slot_label, place)
-    await query.edit_message_text(text, parse_mode="HTML")
+    text_part, entities = format_meeting_notification(m, slot, place)
+    prefix = "👍 Записал!\n\n"
+    full_text = prefix + text_part
+    if entities:
+        entities = shift_entities(entities, utf16_len(prefix))
+    await query.edit_message_text(
+        full_text,
+        entities=entities,
+        parse_mode=None if entities else "HTML",
+    )
     await _notify_organizer_late_join(context.bot, meeting_id, user_id, name, is_coming=True)
 
 

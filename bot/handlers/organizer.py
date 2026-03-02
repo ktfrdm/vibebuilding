@@ -8,7 +8,7 @@ from typing import Optional
 from telegram import ReplyKeyboardRemove, Update
 from telegram.ext import ContextTypes
 
-from bot.formatters import participant_tag
+from bot.formatters import format_meeting_notification, participant_tag
 from bot.keyboards.inline import (
     can_you_come_keyboard,
     confirm_place_keyboard,
@@ -512,26 +512,14 @@ async def _send_organizer_summary(bot, meeting_id: str, place: str) -> None:
     await _send_meeting_summary_to_chat(bot, meeting_id, place, m.creator_user_id)
 
 
-def _format_meeting_notification(m: Meeting, slot_label: str, place: str) -> str:
-    """Форматирует уведомление о встрече как сводку."""
-    title_esc = html.escape(m.title.strip() or "Встреча")
-    place_esc = html.escape(place or "уточните в чате")
-    slot_esc = html.escape(slot_label)
-    return (
-        f"📋 Встречаемся!" + (f" «{title_esc}»" if title_esc != "Встреча" else "") + "\n\n"
-        f"🕐 Время: {slot_esc}\n"
-        f"📍 Место: {place_esc}"
-    )
-
-
 async def _send_notifications(bot, meeting_id: str, place: str) -> None:
     m = meetings.get(meeting_id)
     if not m:
         return
     slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
-    slot_label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
+    notification_text, entities = format_meeting_notification(m, slot, place)
+    parse_mode = None if entities else "HTML"
     replied = [k for k, p in participants.items() if k[0] == meeting_id and p.status == "replied"]
-    notification_text = _format_meeting_notification(m, slot_label, place)
     for k in replied:
         user_id = k[1]
         sel = participants[k].chosen_slot_ids
@@ -539,7 +527,8 @@ async def _send_notifications(bot, meeting_id: str, place: str) -> None:
             await bot.send_message(
                 user_id,
                 notification_text,
-                parse_mode="HTML",
+                entities=entities,
+                parse_mode=parse_mode,
             )
         else:
             participants[k].pending_confirm = True
@@ -550,7 +539,8 @@ async def _send_notifications(bot, meeting_id: str, place: str) -> None:
             await bot.send_message(
                 user_id,
                 confirm_text,
-                parse_mode="HTML",
+                entities=entities,
+                parse_mode=parse_mode,
                 reply_markup=can_you_come_keyboard(meeting_id),
             )
     await _send_organizer_summary(bot, meeting_id, place)

@@ -4,7 +4,7 @@ import html
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from bot.formatters import participant_tag
+from bot.formatters import format_meeting_notification, participant_tag
 from bot.keyboards.inline import organizer_notification_keyboard
 from bot.storage import meetings, participants
 
@@ -57,11 +57,13 @@ async def confirm_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if m.chosen_slot_id is not None and m.chosen_slot_id not in p.chosen_slot_ids:
         p.chosen_slot_ids = list(p.chosen_slot_ids) + [m.chosen_slot_id]
     slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
-    slot_label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
-    from bot.handlers.organizer import _format_meeting_notification
     place = m.place or "уточните в чате"
-    text = _format_meeting_notification(m, slot_label, place)
-    await query.edit_message_text(text, parse_mode="HTML")
+    text, entities = format_meeting_notification(m, slot, place)
+    await query.edit_message_text(
+        text,
+        entities=entities,
+        parse_mode=None if entities else "HTML",
+    )
     await _notify_organizer_confirm(
         context.bot, meeting_id, user_id, p.first_name, confirmed=True
     )
