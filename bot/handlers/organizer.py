@@ -287,12 +287,16 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     else:
         await query.edit_message_text(
             "✅ Готово! Перешли участникам сообщение ниже (текст + ссылка + кнопка «Ответить»).",
-            reply_markup=start_reply_keyboard(),
         )
         await bot.send_message(
             chat_id,
             invite_text,
             reply_markup=invite_keyboard(meeting_id, username, title=title),
+        )
+        await bot.send_message(
+            chat_id,
+            "👇",
+            reply_markup=start_reply_keyboard(),
         )
     await query.answer()
 
