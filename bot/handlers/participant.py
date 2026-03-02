@@ -122,14 +122,15 @@ async def handle_participant_start(update: Update, context: ContextTypes.DEFAULT
         summary = (
             f"📅 «{html.escape(m.title)}»\n\n"
             f"Варианты времени: {html.escape(slots_preview) or '—'}\n\n"
-            f"Отметь удобные слоты или нажми «Увы, не смогу», если не получится."
+            f"Нажми на слоты, когда тебе удобно (можно несколько). "
+            f"В конце нажми кнопку «Готово — отправить ответ»."
         )
         await update.message.reply_text(
             summary,
             reply_markup=ReplyKeyboardRemove(selective=True),
         )
         await update.message.reply_text(
-            "Отметь слоты ниже:",
+            "☐ — не выбрано, ✅ — выбрано. Когда закончишь — нажми «Готово» внизу.",
             reply_markup=participant_slots_keyboard(m.slots, mid, set()),
             parse_mode="HTML",
         )
@@ -264,15 +265,17 @@ async def slot_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not m:
         await query.answer("Встреча не найдена")
         return
-    await query.answer()
     user_id = update.effective_user.id if update.effective_user else 0
     key = (meeting_id, user_id)
     sel = participant_selection.get(key, set())
     if slot_idx in sel:
         sel.discard(slot_idx)
+        answer_text = "Снято"
     else:
         sel.add(slot_idx)
+        answer_text = "Выбрано"
     participant_selection[key] = sel
+    await query.answer(answer_text)
     await query.edit_message_reply_markup(
         reply_markup=participant_slots_keyboard(m.slots, meeting_id, sel),
     )

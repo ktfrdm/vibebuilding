@@ -290,13 +290,13 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         await bot.send_message(
             chat_id,
-            invite_text,
-            reply_markup=invite_keyboard(meeting_id, username, title=title),
+            "\u00b7",  # средняя точка, минимум текста для ReplyKeyboardRemove
+            reply_markup=ReplyKeyboardRemove(selective=True),
         )
         await bot.send_message(
             chat_id,
-            "👇",
-            reply_markup=start_reply_keyboard(),
+            invite_text,
+            reply_markup=invite_keyboard(meeting_id, username, title=title),
         )
     await query.answer()
 
@@ -367,10 +367,6 @@ async def place_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     clear_user_state(uid)
     await _send_notifications(context.bot, meeting_id, m.place)
     await query.edit_message_text("Готово! Уведомления отправлены.")
-    chat_id = query.message.chat.id if query.message else 0
-    await context.bot.send_message(
-        chat_id, "👇", reply_markup=start_reply_keyboard()
-    )
     await query.answer()
 
 

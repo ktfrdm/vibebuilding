@@ -40,17 +40,22 @@ def slots_confirm_keyboard() -> InlineKeyboardMarkup:
 
 
 def participant_slots_keyboard(slots: list[Slot], meeting_id: str, chosen_ids: set[int]) -> InlineKeyboardMarkup:
-    """Кнопки слотов: toggle удобно/не удобно."""
+    """Кнопки слотов: наглядно отмечены выбранные (✅) и невыбранные (☐)."""
     rows = []
     for i, s in enumerate(slots):
         label = f"{s.get('date', '')} {s.get('time', '')}".strip()
-        mark = "✓ " if i in chosen_ids else ""
+        if not label:
+            label = f"Слот {i + 1}"
+        if i in chosen_ids:
+            text = f"✅ {label}"
+        else:
+            text = f"☐ {label}"
         rows.append([InlineKeyboardButton(
-            text=f"{mark}{label}",
+            text=text,
             callback_data=f"slot_toggle:{meeting_id}:{i}"
         )])
-    rows.append([InlineKeyboardButton(text="Увы, не смогу", callback_data=f"decline:{meeting_id}")])
-    rows.append([InlineKeyboardButton(text="Готово", callback_data=f"done:{meeting_id}")])
+    rows.append([InlineKeyboardButton(text="😔 Увы, не смогу", callback_data=f"decline:{meeting_id}")])
+    rows.append([InlineKeyboardButton(text="✅ Готово — отправить ответ", callback_data=f"done:{meeting_id}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
