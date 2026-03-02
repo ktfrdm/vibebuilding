@@ -132,6 +132,8 @@ def main():
                 "WEBHOOK_URL, RAILWAY_STATIC_URL or RAILWAY_PUBLIC_DOMAIN must be set in webhook mode"
             )
         base_url = base_url.rstrip("/")
+        if not base_url.startswith(("http://", "https://")):
+            base_url = "https://" + base_url
         url_path = BOT_TOKEN
         webhook_url = f"{base_url}/{url_path}"
         logging.info("Starting webhook on port %s with URL %s", port, webhook_url)
