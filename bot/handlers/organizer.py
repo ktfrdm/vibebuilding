@@ -286,7 +286,7 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     else:
         await query.edit_message_text(
-            "✅ Готово! Перешли участникам сообщение ниже (текст + ссылка + кнопка «Ответить»).",
+            "✅ Готово! Перешли участникам сообщение ниже.",
         )
         await bot.send_message(
             chat_id,

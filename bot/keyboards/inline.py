@@ -11,10 +11,17 @@ from bot.storage import Slot
 
 
 def start_inline_keyboard() -> InlineKeyboardMarkup:
-    """Главное меню: создать встречу или статус."""
+    """Главное меню: создать встречу и статус (после того как встреча есть)."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Давай соберёмся!", callback_data="start_meeting")],
         [InlineKeyboardButton(text="📋 Статус", callback_data="main_svodka")],
+    ])
+
+
+def start_inline_keyboard_first() -> InlineKeyboardMarkup:
+    """Только при первом запуске: одна кнопка «Давай соберёмся!». Статус — через меню бота (/svodka)."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Давай соберёмся!", callback_data="start_meeting")],
     ])
 
 
