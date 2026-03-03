@@ -2,7 +2,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from bot.keyboards.inline import start_reply_keyboard
+from bot.keyboards.inline import start_inline_keyboard
 from bot.storage import clear_user_state
 
 
@@ -28,7 +28,6 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     clear_user_state(user_id)
     await update.message.reply_text(
-        "👋 Привет! Я помогу собрать друзей и согласовать время встречи.\n\n"
-        "Нажми «Давай соберёмся!» или «Статус» для просмотра встреч.",
-        reply_markup=start_reply_keyboard(),
+        "👋 Привет! Я помогу собрать друзей и согласовать время встречи.",
+        reply_markup=start_inline_keyboard(),
     )

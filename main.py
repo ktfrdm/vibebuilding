@@ -82,6 +82,8 @@ def main():
     )
     app.add_handler(CallbackQueryHandler(participant.decline, pattern="^decline:"))
     app.add_handler(CallbackQueryHandler(participant.done, pattern="^done:"))
+    app.add_handler(CallbackQueryHandler(organizer.start_meeting_callback, pattern="^start_meeting$"))
+    app.add_handler(CallbackQueryHandler(organizer.main_svodka_callback, pattern="^main_svodka$"))
     app.add_handler(CallbackQueryHandler(organizer.skip_title, pattern="^skip$"))
     app.add_handler(CallbackQueryHandler(organizer.slots_confirmed, pattern="^slots_ok$"))
     app.add_handler(CallbackQueryHandler(organizer.slots_edit, pattern="^slots_edit$"))

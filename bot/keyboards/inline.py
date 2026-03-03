@@ -5,25 +5,17 @@ from urllib.parse import quote
 
 from typing import Optional
 
-from telegram import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    KeyboardButton,
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
-)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.storage import Slot
 
 
-def start_reply_keyboard() -> ReplyKeyboardMarkup:
-    """Reply-клавиатура: «Давай соберёмся!» и «Статус» для просмотра встреч."""
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Давай соберёмся!"), KeyboardButton(text="📋 Статус")],
-        ],
-        resize_keyboard=True,
-    )
+def start_inline_keyboard() -> InlineKeyboardMarkup:
+    """Главное меню: создать встречу или статус."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Давай соберёмся!", callback_data="start_meeting")],
+        [InlineKeyboardButton(text="📋 Статус", callback_data="main_svodka")],
+    ])
 
 
 def skip_keyboard() -> InlineKeyboardMarkup:
@@ -55,7 +47,8 @@ def participant_slots_keyboard(slots: list[Slot], meeting_id: str, chosen_ids: s
             callback_data=f"slot_toggle:{meeting_id}:{i}"
         )])
     rows.append([InlineKeyboardButton(text="😔 Увы, не смогу", callback_data=f"decline:{meeting_id}")])
-    rows.append([InlineKeyboardButton(text="✅ Готово — отправить ответ", callback_data=f"done:{meeting_id}")])
+    # Кнопка «Готово» выделена эмодзи и формулировкой, т.к. цвет inline-кнопок в API не задаётся
+    rows.append([InlineKeyboardButton(text="📤 Готово — отправить ответ", callback_data=f"done:{meeting_id}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

@@ -5,7 +5,7 @@ import random
 import string
 from typing import Optional
 
-from telegram import ReplyKeyboardRemove, Update
+from telegram import Update
 from telegram.ext import ContextTypes
 
 from bot.formatters import format_meeting_notification, participant_tag
@@ -17,7 +17,7 @@ from bot.keyboards.inline import (
     late_join_keyboard,
     skip_keyboard,
     slots_confirm_keyboard,
-    start_reply_keyboard,
+    start_inline_keyboard,
 )
 from bot.services.llm import filter_past_slots, parse_options
 from bot.storage import (
@@ -142,8 +142,8 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await _handle_place(update, context, uid)
     else:
         await msg.reply_text(
-            'Нажми «Давай соберёмся!» чтобы создать встречу или «Статус» для просмотра.',
-            reply_markup=start_reply_keyboard(),
+            "Создать встречу или посмотреть статус:",
+            reply_markup=start_inline_keyboard(),
         )
 
 
@@ -216,7 +216,7 @@ async def _handle_place(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
     await _send_notifications(context.bot, meeting_id, place)
     await update.message.reply_text(
         "Готово! Уведомления отправлены.",
-        reply_markup=start_reply_keyboard(),
+        reply_markup=start_inline_keyboard(),
     )
 
 
@@ -287,11 +287,6 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     else:
         await query.edit_message_text(
             "✅ Готово! Перешли участникам сообщение ниже (текст + ссылка + кнопка «Ответить»).",
-        )
-        await bot.send_message(
-            chat_id,
-            "\u00b7",  # средняя точка, минимум текста для ReplyKeyboardRemove
-            reply_markup=ReplyKeyboardRemove(selective=True),
         )
         await bot.send_message(
             chat_id,
@@ -368,6 +363,44 @@ async def place_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await _send_notifications(context.bot, meeting_id, m.place)
     await query.edit_message_text("Готово! Уведомления отправлены.")
     await query.answer()
+
+
+async def start_meeting_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Inline-кнопка «Давай соберёмся!» — начать создание встречи."""
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    uid = _user_id(update)
+    chat_id = query.message.chat.id if query.message else 0
+    clear_user_state(uid)
+    set_user_state(uid, "title")
+    await context.bot.send_message(
+        chat_id,
+        "💬 Как назовём нашу встречу? Например: «Кофе», «Ужин в пятницу». Можно пропустить!",
+        reply_markup=skip_keyboard(),
+    )
+
+
+async def main_svodka_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Inline-кнопка «Статус» — список встреч организатора."""
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    uid = _user_id(update)
+    chat_id = query.message.chat.id if query.message else 0
+    my_meetings = [m for m in meetings.values() if m.creator_user_id == uid]
+    if not my_meetings:
+        await context.bot.send_message(
+            chat_id,
+            "У тебя пока нет встреч. Нажми «Давай соберёмся!», чтобы создать.",
+            reply_markup=start_inline_keyboard(),
+        )
+        return
+    m = my_meetings[-1]
+    from bot.handlers.participant import _send_organizer_summary_to_chat
+    await _send_organizer_summary_to_chat(context.bot, chat_id, m)
 
 
 async def show_svodka_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
