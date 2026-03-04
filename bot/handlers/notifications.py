@@ -1,5 +1,6 @@
 """«Да, приду!» / «Увы, не смогу» — ответ на «Сможешь прийти?»."""
 import html
+import logging
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -7,6 +8,8 @@ from telegram.ext import ContextTypes
 from bot.formatters import format_meeting_notification, participant_tag
 from bot.keyboards.inline import organizer_notification_keyboard
 from bot.storage import meetings, participants
+
+logger = logging.getLogger(__name__)
 
 
 async def _notify_organizer_confirm(
@@ -33,8 +36,8 @@ async def _notify_organizer_confirm(
                 parse_mode="HTML",
                 reply_markup=organizer_notification_keyboard(meeting_id),
             )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Не удалось уведомить организатора об ответе участника: %s", e)
 
 
 async def confirm_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

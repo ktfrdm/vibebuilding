@@ -37,7 +37,7 @@ from bot.handlers import common, notifications, organizer, participant, start
 from bot.queue import PerUserUpdateProcessor
 
 logging.basicConfig(
-    level=getattr(LOG_LEVEL.upper(), LOG_LEVEL.upper(), logging.INFO),
+    level=getattr(logging, (LOG_LEVEL or "INFO").upper(), logging.INFO),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 

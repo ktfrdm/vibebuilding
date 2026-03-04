@@ -254,11 +254,18 @@ async def slot_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if len(parts) != 3:
         await query.answer()
         return
-    _, meeting_id, slot_idx = parts
-    slot_idx = int(slot_idx)
+    _, meeting_id, slot_idx_str = parts
+    try:
+        slot_idx = int(slot_idx_str)
+    except ValueError:
+        await query.answer()
+        return
     m = meetings.get(meeting_id)
     if not m:
         await query.answer("Встреча не найдена")
+        return
+    if not (0 <= slot_idx < len(m.slots)):
+        await query.answer("Неверный слот")
         return
     user_id = update.effective_user.id if update.effective_user else 0
     key = (meeting_id, user_id)

@@ -321,12 +321,19 @@ async def choose_slot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if len(parts) != 3:
         await query.answer()
         return
-    _, meeting_id, slot_idx = parts
-    slot_idx = int(slot_idx)
+    _, meeting_id, slot_idx_str = parts
+    try:
+        slot_idx = int(slot_idx_str)
+    except ValueError:
+        await query.answer()
+        return
     m = meetings.get(meeting_id)
     uid = _user_id(update)
     if not m or uid != m.creator_user_id:
         await query.answer("Встреча не найдена")
+        return
+    if not (0 <= slot_idx < len(m.slots)):
+        await query.answer("Неверный слот")
         return
     m.chosen_slot_id = slot_idx
     m.status = "time_chosen"
@@ -522,8 +529,8 @@ async def _send_meeting_summary_to_chat(
         await bot.send_message(
             chat_id, text, parse_mode="HTML", reply_markup=reply_markup
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Не удалось отправить сводку в чат %s: %s", chat_id, e)
 
 
 async def _send_organizer_summary(bot, meeting_id: str, place: str) -> None:
