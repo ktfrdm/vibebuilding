@@ -14,6 +14,7 @@ from bot.keyboards.inline import (
     participant_slots_keyboard,
 )
 from bot.storage import Meeting, ParticipantData, meetings, participants, participant_selection
+from bot.telegram_logger import send_log_event
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,15 @@ async def handle_participant_start(update: Update, context: ContextTypes.DEFAULT
             summary,
             reply_markup=participant_slots_keyboard(m.slots, mid, set()),
             parse_mode="HTML",
+        )
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "participant_opened",
+            user_id=user_id,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            title=m.title,
         )
 
 
@@ -301,6 +311,16 @@ async def decline(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _notify_organizer_new_response(
         context.bot, meeting_id, user_id, name, is_decline=True, chosen_slot_ids=None
     )
+    u = update.effective_user
+    title = m.title if m else meeting_id
+    await send_log_event(
+        context.bot,
+        "participant_declined",
+        user_id=user_id,
+        username=u.username if u else None,
+        first_name=u.first_name if u else None,
+        title=title,
+    )
 
 
 async def done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -326,6 +346,17 @@ async def done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await query.edit_message_text(result, parse_mode="HTML")
     await _notify_organizer_new_response(
         context.bot, meeting_id, user_id, name, is_decline=False, chosen_slot_ids=list(sel)
+    )
+    u = update.effective_user
+    title = m.title if m else "Встреча"
+    await send_log_event(
+        context.bot,
+        "participant_replied",
+        user_id=user_id,
+        username=u.username if u else None,
+        first_name=u.first_name if u else None,
+        title=title,
+        chosen_slots_count=len(sel),
     )
 
 

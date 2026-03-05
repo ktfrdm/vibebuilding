@@ -35,6 +35,8 @@ from telegram.ext import (
 from bot.config import BOT_TOKEN, LOG_LEVEL
 from bot.handlers import common, notifications, organizer, participant, start
 from bot.queue import PerUserUpdateProcessor
+from bot.storage import get_user_step
+from bot.telegram_logger import send_log_event
 
 logging.basicConfig(
     level=getattr(logging, (LOG_LEVEL or "INFO").upper(), logging.INFO),
@@ -56,6 +58,29 @@ async def post_init(application):
 
 async def error_handler(update, context):
     logging.exception("Unhandled error: %s", context.error)
+    # Немедленно отправить лог об ошибке в группу Vibe logs (если настроена).
+    bot = context.application.bot if context.application else None
+    if bot:
+        err = context.error
+        where = "user" if (update and update.effective_user) else "service"
+        payload = {
+            "where": where,
+            "error_type": type(err).__name__,
+            "error_message": str(err),
+            "exception": err,
+        }
+        if where == "user" and update and update.effective_user:
+            u = update.effective_user
+            payload["user_id"] = u.id
+            payload["username"] = u.username
+            payload["first_name"] = u.first_name
+            try:
+                step = get_user_step(u.id)
+                if step and step != "idle":
+                    payload["step"] = step
+            except Exception:
+                pass
+        await send_log_event(bot, "error", **payload)
     if update and update.effective_message:
         await update.effective_message.reply_text("Что-то пошло не так. Нажми /start")
     elif update and update.callback_query:
@@ -76,6 +101,7 @@ def main():
     # Порядок критичен: start (с deep link), help, callbacks, текст организатора, fallback
     app.add_handler(CommandHandler("start", start.cmd_start))
     app.add_handler(CommandHandler("svodka", organizer.cmd_svodka))
+    app.add_handler(CommandHandler("logs", common.cmd_logs))
     app.add_handler(CommandHandler("help", common.cmd_help))
     app.add_handler(
         CallbackQueryHandler(participant.slot_toggle, pattern="^slot_toggle:")

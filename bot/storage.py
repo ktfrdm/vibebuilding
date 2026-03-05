@@ -33,6 +33,9 @@ participants: dict[tuple[str, int], ParticipantData] = {}
 # Временный выбор слотов до нажатия «Готово»
 participant_selection: dict[tuple[str, int], set[int]] = {}
 
+# Время старта создания встречи организатором (user_id -> time.time()) для расчёта длительности
+organizer_flow_start: dict[int, float] = {}
+
 # --- Состояние организатора (storage-based, без FSM) ---
 # step: idle | title | slots | slots_confirm | place
 # data: для title/slots/slots_confirm — {title, slots}; для place — {meeting_id}

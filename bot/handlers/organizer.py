@@ -3,6 +3,7 @@ import html
 import logging
 import random
 import string
+import time
 from typing import Optional
 
 from telegram import Update
@@ -26,10 +27,12 @@ from bot.storage import (
     get_user_state,
     get_user_step,
     meetings,
+    organizer_flow_start,
     participants,
     set_user_state,
     update_user_state,
 )
+from bot.telegram_logger import send_log_event
 
 SLOTS_PROMPT = (
     "Какие варианты времени предложить участникам? Напиши одним сообщением, "
@@ -109,6 +112,15 @@ async def create_meeting_start(update: Update, context: ContextTypes.DEFAULT_TYP
     uid = _user_id(update)
     clear_user_state(uid)
     set_user_state(uid, "title")
+    organizer_flow_start[uid] = time.time()
+    u = update.effective_user
+    await send_log_event(
+        context.bot,
+        "organizer_start",
+        user_id=uid,
+        username=u.username if u else None,
+        first_name=u.first_name if u else None,
+    )
     await update.message.reply_text(
         "💬 Как назовём нашу встречу? Например: «Кофе», «Ужин в пятницу». Можно пропустить!",
         reply_markup=skip_keyboard(),
@@ -214,6 +226,16 @@ async def _handle_place(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
     m.place = place
     clear_user_state(uid)
     await _send_notifications(context.bot, meeting_id, place)
+    started = organizer_flow_start.pop(uid, None)
+    duration_sec = (time.time() - started) if started else None
+    participants_count = sum(1 for k in participants if k[0] == meeting_id and participants[k].status == "replied")
+    await send_log_event(
+        context.bot,
+        "organizer_notifications_sent",
+        title=m.title,
+        participants_count=participants_count,
+        duration_sec=duration_sec,
+    )
     await update.message.reply_text(
         "Готово! Уведомления отправлены.",
         reply_markup=start_inline_keyboard(),
@@ -293,6 +315,12 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             invite_text,
             reply_markup=invite_keyboard(meeting_id, username, title=title),
         )
+    await send_log_event(
+        bot,
+        "organizer_meeting_created",
+        title=title,
+        slots_count=len(slots),
+    )
     await query.answer()
 
 
@@ -368,6 +396,17 @@ async def place_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     m.place = "уточните в чате"
     clear_user_state(uid)
     await _send_notifications(context.bot, meeting_id, m.place)
+    creator_uid = m.creator_user_id
+    started = organizer_flow_start.pop(creator_uid, None)
+    duration_sec = (time.time() - started) if started else None
+    participants_count = sum(1 for k in participants if k[0] == meeting_id and participants[k].status == "replied")
+    await send_log_event(
+        context.bot,
+        "organizer_notifications_sent",
+        title=m.title,
+        participants_count=participants_count,
+        duration_sec=duration_sec,
+    )
     await query.edit_message_text("Готово! Уведомления отправлены.")
     await query.answer()
 
@@ -382,6 +421,15 @@ async def start_meeting_callback(update: Update, context: ContextTypes.DEFAULT_T
     chat_id = query.message.chat.id if query.message else 0
     clear_user_state(uid)
     set_user_state(uid, "title")
+    organizer_flow_start[uid] = time.time()
+    u = update.effective_user
+    await send_log_event(
+        context.bot,
+        "organizer_start",
+        user_id=uid,
+        username=u.username if u else None,
+        first_name=u.first_name if u else None,
+    )
     await context.bot.send_message(
         chat_id,
         "💬 Как назовём нашу встречу? Например: «Кофе», «Ужин в пятницу». Можно пропустить!",
