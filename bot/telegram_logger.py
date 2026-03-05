@@ -37,6 +37,7 @@ async def send_log_event(bot: Any, event: str, **payload: Any) -> None:
     """
     chat_id = get_logs_chat_id()
     if chat_id is None:
+        logger.debug("Лог не отправлен: chat_id для Vibe logs не настроен (VIBE_LOGS_CHAT_ID или /logs в группе).")
         return
     try:
         text = _build_log_text(event, **payload)

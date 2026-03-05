@@ -24,4 +24,8 @@ async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Команда /logs доступна только в группе. Добавьте бота в группу «Vibe logs» и отправьте там /logs.")
         return
     set_logs_chat_id(chat.id)
-    await update.message.reply_text("Эта группа настроена для логов бота.")
+    await update.message.reply_text(
+        f"Эта группа настроена для логов бота.\n\n"
+        f"Чтобы логи не терялись при деплое (Railway), задай переменную окружения:\n"
+        f"VIBE_LOGS_CHAT_ID = {chat.id}"
+    )

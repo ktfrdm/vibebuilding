@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 _DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -9,7 +10,16 @@ _LOGS_CHAT_ID_FILE = _DATA_DIR / "logs_chat_id.json"
 
 
 def get_logs_chat_id() -> int | None:
-    """Возвращает chat_id группы для логов или None, если не настроено."""
+    """Возвращает chat_id группы для логов или None, если не настроено.
+    Сначала проверяется переменная окружения VIBE_LOGS_CHAT_ID (сохраняется при деплоях Railway),
+    затем файл bot/data/logs_chat_id.json (теряется при рестарте контейнера).
+    """
+    env_val = os.getenv("VIBE_LOGS_CHAT_ID")
+    if env_val is not None and env_val.strip():
+        try:
+            return int(env_val.strip())
+        except ValueError:
+            pass
     if not _LOGS_CHAT_ID_FILE.exists():
         return None
     try:
