@@ -2,6 +2,7 @@
 import logging
 import os
 import sys
+import time
 
 from telegram import BotCommand
 
@@ -165,6 +166,8 @@ def main():
         url_path = BOT_TOKEN
         webhook_url = f"{base_url}/{url_path}"
         logging.info("Starting webhook on port %s with URL %s", port, webhook_url)
+        # Небольшая задержка перед setWebhook, чтобы при частых рестартах (Railway) не получать 429 от Telegram.
+        time.sleep(2)
         app.run_webhook(
             listen="0.0.0.0",
             port=port,
