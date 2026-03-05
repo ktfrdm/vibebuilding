@@ -103,6 +103,19 @@ async def handle_participant_start(update: Update, context: ContextTypes.DEFAULT
     mid = f"m_{meeting_id}" if not meeting_id.startswith("m_") else meeting_id
     m = meetings.get(mid)
     if not m:
+        u = update.effective_user
+        uid = u.id if u else 0
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="participant_start",
+            error_type="MeetingNotFoundByLink",
+            error_message="Встреча не найдена или уже завершена (участник по ссылке)",
+        )
         await update.message.reply_text("Встреча не найдена или уже завершена.")
         return
     chat_id = update.effective_chat.id if update.effective_chat else 0
@@ -272,9 +285,33 @@ async def slot_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
     m = meetings.get(meeting_id)
     if not m:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=update.effective_user.id if update.effective_user else 0,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="slot_toggle",
+            error_type="MeetingNotFoundCallback",
+            error_message="Встреча не найдена при переключении слота",
+        )
         await query.answer("Встреча не найдена")
         return
     if not (0 <= slot_idx < len(m.slots)):
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=u.id if u else 0,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="slot_toggle",
+            error_type="InvalidSlotIndex",
+            error_message=f"Индекс слота {slot_idx} вне диапазона (всего {len(m.slots)})",
+        )
         await query.answer("Неверный слот")
         return
     user_id = update.effective_user.id if update.effective_user else 0
@@ -371,10 +408,34 @@ async def late_join_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     name = (update.effective_user.first_name or "").strip() if update.effective_user else ""
     key = (meeting_id, user_id)
     if key in participants:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=user_id,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="late_join_yes",
+            error_type="ParticipantAlreadyReplied",
+            error_message="Участник нажал «Приду» повторно",
+        )
         await query.edit_message_text("Ты уже ответил.")
         return
     m = meetings.get(meeting_id)
     if not m or m.status != "time_chosen" or m.chosen_slot_id is None:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=user_id,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="late_join_yes",
+            error_type="MeetingNotFoundOrNotFinalized",
+            error_message="Встреча не найдена или ещё не назначена (прийти)",
+        )
         await query.edit_message_text("Встреча не найдена или ещё не назначена.")
         return
     participants[key] = ParticipantData(
@@ -409,10 +470,34 @@ async def late_join_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     name = (update.effective_user.first_name or "").strip() if update.effective_user else ""
     key = (meeting_id, user_id)
     if key in participants:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=user_id,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="late_join_no",
+            error_type="ParticipantAlreadyReplied",
+            error_message="Участник нажал «Не смогу» повторно",
+        )
         await query.edit_message_text("Ты уже ответил.")
         return
     m = meetings.get(meeting_id)
     if not m or m.status != "time_chosen":
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=user_id,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="late_join_no",
+            error_type="MeetingNotFoundOrNotFinalized",
+            error_message="Встреча не найдена или ещё не назначена (не смогу)",
+        )
         await query.edit_message_text("Встреча не найдена или ещё не назначена.")
         return
     participants[key] = ParticipantData(

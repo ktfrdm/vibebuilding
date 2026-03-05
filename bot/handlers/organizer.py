@@ -78,6 +78,18 @@ async def cmd_svodka(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         mid = f"m_{meeting_id_arg}" if not meeting_id_arg.startswith("m_") else meeting_id_arg
         m = meetings.get(mid)
         if not m:
+            u = update.effective_user
+            await send_log_event(
+                context.bot,
+                "error",
+                where="user",
+                user_id=uid,
+                username=u.username if u else None,
+                first_name=u.first_name if u else None,
+                step="start_link",
+                error_type="MeetingNotFoundByLink",
+                error_message="Встреча не найдена или уже завершена",
+            )
             await update.message.reply_text("Встреча не найдена или уже завершена.")
             return
         if m.status == "time_chosen":
@@ -91,6 +103,18 @@ async def cmd_svodka(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     my_meetings = [m for m in meetings.values() if m.creator_user_id == uid]
     if not my_meetings:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="svodka",
+            error_type="NoMeetingsYet",
+            error_message="Организатор открыл статус, встреч пока нет",
+        )
         await update.message.reply_text("У тебя пока нет встреч. Нажми «Давай соберёмся!» чтобы создать.")
         return
     m = my_meetings[-1]
@@ -149,7 +173,7 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if step == "title":
         await _handle_title(update, uid)
     elif step == "slots":
-        await _handle_slots(update, uid)
+        await _handle_slots(update, context, uid)
     elif step == "place":
         await _handle_place(update, context, uid)
     else:
@@ -170,18 +194,43 @@ async def _handle_title(update: Update, uid: int) -> None:
     await msg.reply_text(SLOTS_PROMPT)
 
 
-async def _handle_slots(update: Update, uid: int) -> None:
+async def _handle_slots(update: Update, context: ContextTypes.DEFAULT_TYPE, uid: int) -> None:
     if not update.message:
         return
     text = (update.message.text or "").strip()
     result = parse_options(text)
     if not result.get("ok"):
+        err_msg = result.get("error", "Не удалось распознать слоты")
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="slots",
+            error_type="SlotsNotUnderstood",
+            error_message=err_msg,
+        )
         await update.message.reply_text(
             "🤔 Хм, не совсем понял. Напиши варианты времени попроще, например: «суббота 12:00, 15:00, 18:00»"
         )
         return
     slots = result.get("slots", [])
     if not slots:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="slots",
+            error_type="SlotsEmpty",
+            error_message="LLM вернул ok, но слотов нет",
+        )
         await update.message.reply_text("Не удалось извлечь слоты. Попробуй ещё раз.")
         return
     slots_list_raw = []
@@ -192,6 +241,18 @@ async def _handle_slots(update: Update, uid: int) -> None:
             slots_list_raw.append({"date": str(s), "time": "", "datetime": ""})
     slots_list, past = filter_past_slots(slots_list_raw)
     if not slots_list:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="slots",
+            error_type="AllSlotsInPast",
+            error_message="Все слоты в прошлом",
+        )
         await update.message.reply_text(
             "Нельзя назначить встречу в прошлом. Укажи даты и время в будущем, например: «суббота 12:00, 15:00» или «25 февраля вечером»."
         )
@@ -219,6 +280,18 @@ async def _handle_place(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
         return
     m = meetings.get(meeting_id)
     if not m:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="place",
+            error_type="MeetingNotFoundInFlow",
+            error_message="Встреча не найдена при вводе места",
+        )
         await update.message.reply_text("Встреча не найдена")
         clear_user_state(uid)
         return
@@ -358,9 +431,33 @@ async def choose_slot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     m = meetings.get(meeting_id)
     uid = _user_id(update)
     if not m or uid != m.creator_user_id:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="choose_slot",
+            error_type="MeetingNotFoundOrNotCreator",
+            error_message="Встреча не найдена или пользователь не организатор",
+        )
         await query.answer("Встреча не найдена")
         return
     if not (0 <= slot_idx < len(m.slots)):
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="choose_slot",
+            error_type="InvalidSlotIndex",
+            error_message=f"Индекс слота {slot_idx} вне диапазона (всего {len(m.slots)})",
+        )
         await query.answer("Неверный слот")
         return
     m.chosen_slot_id = slot_idx
@@ -491,6 +588,18 @@ async def choose_time_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = query.message.chat.id if query.message else 0
     m = meetings.get(meeting_id)
     if not m:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="choose_time",
+            error_type="MeetingNotFoundCallback",
+            error_message="Встреча не найдена или уже завершена (choose_time)",
+        )
         await query.edit_message_text("Встреча не найдена или уже завершена.")
         return
     if m.status == "time_chosen":

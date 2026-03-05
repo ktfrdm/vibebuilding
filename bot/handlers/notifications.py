@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes
 from bot.formatters import format_meeting_notification, participant_tag
 from bot.keyboards.inline import organizer_notification_keyboard
 from bot.storage import meetings, participants
+from bot.telegram_logger import send_log_event
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +50,35 @@ async def confirm_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     key = (meeting_id, user_id)
     p = participants.get(key)
     if not p or not p.pending_confirm:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=user_id,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="confirm_yes",
+            error_type="ParticipantConfirmInvalid",
+            error_message="Нет ожидающего подтверждения или уже подтверждено",
+        )
         await query.answer()
         return
     p.pending_confirm = False
     m = meetings.get(meeting_id)
     if not m:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=user_id,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="confirm_yes",
+            error_type="MeetingNotFoundCallback",
+            error_message="Встреча не найдена при подтверждении «Приду»",
+        )
         await query.answer()
         return
     # Добавляем выбранный слот, чтобы участник попадал в «Придут» при открытии сводки
@@ -82,6 +107,18 @@ async def confirm_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     key = (meeting_id, user_id)
     p = participants.get(key)
     if not p:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=user_id,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="confirm_no",
+            error_type="ParticipantConfirmInvalid",
+            error_message="Участник не найден при отказе «Не смогу»",
+        )
         await query.answer()
         return
     p.pending_confirm = False
