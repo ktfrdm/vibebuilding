@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from bot.logs_destination import get_logs_chat_id
 
 logger = logging.getLogger(__name__)
+
+# Разделитель для читаемости (как в примерах логов).
+_SEP = "━━━━━━━━━━━━━━━━━━━━━━━━"
 
 
 def _user_label(username: str | None, first_name: str | None, user_id: int) -> str:
@@ -16,6 +20,11 @@ def _user_label(username: str | None, first_name: str | None, user_id: int) -> s
     if first_name and first_name.strip():
         return first_name.strip()
     return f"id:{user_id}"
+
+
+def _ts() -> str:
+    """Время события для лога (UTC)."""
+    return datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
 
 
 def _format_duration(seconds: float) -> str:
@@ -49,24 +58,42 @@ async def send_log_event(bot: Any, event: str, **payload: Any) -> None:
 
 
 def _build_log_text(event: str, **payload: Any) -> str:
-    """Формирует текст сообщения для лога по типу события и payload."""
+    """Формирует текст сообщения для лога по типу события и payload (формат как в лучших практиках)."""
+    t = _ts()
     if event == "organizer_start":
         label = _user_label(
             payload.get("username"),
             payload.get("first_name"),
             payload.get("user_id", 0),
         )
-        return f"[Vibe] Организатор | Начало создания встречи | {label} (id: {payload.get('user_id', '')})"
+        uid = payload.get("user_id", "")
+        return (
+            f"📅 Vibe · Начало создания встречи\n{_SEP}\n"
+            f"👤 Организатор: {label}\n"
+            f"🆔 User ID: {uid}\n"
+            f"🕒 {t}\n{_SEP}"
+        )
     if event == "organizer_meeting_created":
         title = payload.get("title", "—")
         slots_count = payload.get("slots_count", 0)
-        return f"[Vibe] Организатор | Встреча создана | «{title}», слотов: {slots_count}"
+        return (
+            f"📅 Vibe · Встреча создана\n{_SEP}\n"
+            f"📋 Встреча: «{title}»\n"
+            f"📊 Слотов: {slots_count}\n"
+            f"🕒 {t}\n{_SEP}"
+        )
     if event == "organizer_notifications_sent":
         title = payload.get("title", "—")
         participants_count = payload.get("participants_count", 0)
         duration_sec = payload.get("duration_sec")
         duration_str = _format_duration(duration_sec) if duration_sec is not None else "—"
-        return f"[Vibe] Организатор | Рассылка участникам | «{title}», участников: {participants_count}, длительность: {duration_str}"
+        return (
+            f"📅 Vibe · Рассылка участникам\n{_SEP}\n"
+            f"📋 Встреча: «{title}»\n"
+            f"👥 Участников: {participants_count}\n"
+            f"⏱️ Длительность: {duration_str}\n"
+            f"🕒 {t}\n{_SEP}"
+        )
     if event == "participant_opened":
         label = _user_label(
             payload.get("username"),
@@ -74,7 +101,12 @@ def _build_log_text(event: str, **payload: Any) -> str:
             payload.get("user_id", 0),
         )
         title = payload.get("title", "—")
-        return f"[Vibe] Участник | Открыл приглашение | {label}, встреча «{title}»"
+        return (
+            f"📅 Vibe · Участник открыл приглашение\n{_SEP}\n"
+            f"👤 Участник: {label}\n"
+            f"📋 Встреча: «{title}»\n"
+            f"🕒 {t}\n{_SEP}"
+        )
     if event == "participant_replied":
         label = _user_label(
             payload.get("username"),
@@ -83,7 +115,13 @@ def _build_log_text(event: str, **payload: Any) -> str:
         )
         title = payload.get("title", "—")
         slots_count = payload.get("chosen_slots_count", 0)
-        return f"[Vibe] Участник | Ответил | {label}, встреча «{title}», слотов: {slots_count}"
+        return (
+            f"📅 Vibe · Участник ответил\n{_SEP}\n"
+            f"👤 Участник: {label}\n"
+            f"📋 Встреча: «{title}»\n"
+            f"📊 Выбрано слотов: {slots_count}\n"
+            f"🕒 {t}\n{_SEP}"
+        )
     if event == "participant_declined":
         label = _user_label(
             payload.get("username"),
@@ -91,22 +129,32 @@ def _build_log_text(event: str, **payload: Any) -> str:
             payload.get("user_id", 0),
         )
         title = payload.get("title", "—")
-        return f"[Vibe] Участник | Отказался | {label}, встреча «{title}»"
+        return (
+            f"📅 Vibe · Участник отказался\n{_SEP}\n"
+            f"👤 Участник: {label}\n"
+            f"📋 Встреча: «{title}»\n"
+            f"🕒 {t}\n{_SEP}"
+        )
     if event == "error":
-        # Немедленный лог при ошибке: контекст (пользователь/сервис), кто, что упало.
-        where = payload.get("where", "сервис")  # "user" -> "Пользователь", "service" -> "Сервис"
+        where = payload.get("where", "сервис")
         where_ru = "Пользователь" if where == "user" else "Сервис"
         err_type = payload.get("error_type", "Error")
         err_msg = (payload.get("error_message") or str(payload.get("exception", "")))[:200]
-        user_part = ""
+        lines = [
+            f"⚠️ Vibe · Ошибка\n{_SEP}",
+            f"📌 Контекст: {where_ru}",
+        ]
         if where == "user" and (payload.get("user_id") or payload.get("username") or payload.get("first_name")):
             label = _user_label(
                 payload.get("username"),
                 payload.get("first_name"),
                 payload.get("user_id", 0),
             )
-            user_part = f"{label} (id: {payload.get('user_id', '')}). "
+            lines.append(f"👤 {label} (🆔 {payload.get('user_id', '')})")
         step = payload.get("step")
-        step_part = f" Шаг: {step}." if step else ""
-        return f"[Vibe] ⚠ Ошибка | {where_ru} | {user_part}{err_type}: {err_msg}.{step_part}"
+        if step:
+            lines.append(f"📋 Шаг: {step}")
+        lines.append(f"❌ {err_type}: {err_msg}")
+        lines.append(f"🕒 {t}\n{_SEP}")
+        return "\n".join(lines)
     return ""
