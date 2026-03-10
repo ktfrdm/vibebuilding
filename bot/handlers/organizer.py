@@ -89,6 +89,7 @@ async def cmd_svodka(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                 step="start_link",
                 error_type="MeetingNotFoundByLink",
                 error_message="Встреча не найдена или уже завершена",
+                user_input=meeting_id_arg,
             )
             await update.message.reply_text("Встреча не найдена или уже завершена.")
             return
@@ -212,6 +213,7 @@ async def _handle_slots(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
             step="slots",
             error_type="SlotsNotUnderstood",
             error_message=err_msg,
+            user_input=text,
         )
         await update.message.reply_text(
             "🤔 Хм, не совсем понял. Напиши варианты времени попроще, например: «суббота 12:00, 15:00, 18:00»"
@@ -230,6 +232,7 @@ async def _handle_slots(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
             step="slots",
             error_type="SlotsEmpty",
             error_message="LLM вернул ok, но слотов нет",
+            user_input=text,
         )
         await update.message.reply_text("Не удалось извлечь слоты. Попробуй ещё раз.")
         return
@@ -252,11 +255,26 @@ async def _handle_slots(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
             step="slots",
             error_type="AllSlotsInPast",
             error_message="Все слоты в прошлом",
+            user_input=text,
         )
         await update.message.reply_text(
             "Нельзя назначить встречу в прошлом. Укажи даты и время в будущем, например: «суббота 12:00, 15:00» или «25 февраля вечером»."
         )
         return
+    if past:
+        u = update.effective_user
+        await send_log_event(
+            context.bot,
+            "error",
+            where="user",
+            user_id=uid,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+            step="slots",
+            error_type="SomeSlotsInPast",
+            error_message=f"Убрано слотов в прошлом: {len(past)}, осталось: {len(slots_list)}",
+            user_input=text,
+        )
     state = get_user_state(uid)
     title = (state.get("data") or {}).get("title", "Встреча")
     update_user_state(uid, slots=slots_list)
@@ -281,6 +299,7 @@ async def _handle_place(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
     m = meetings.get(meeting_id)
     if not m:
         u = update.effective_user
+        place_text = (update.message.text or "").strip()
         await send_log_event(
             context.bot,
             "error",
@@ -291,6 +310,7 @@ async def _handle_place(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
             step="place",
             error_type="MeetingNotFoundInFlow",
             error_message="Встреча не найдена при вводе места",
+            user_input=place_text or None,
         )
         await update.message.reply_text("Встреча не найдена")
         clear_user_state(uid)

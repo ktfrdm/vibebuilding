@@ -119,6 +119,7 @@ async def handle_participant_start(update: Update, context: ContextTypes.DEFAULT
             step="participant_start",
             error_type="MeetingNotFoundByLink",
             error_message="Встреча не найдена или уже завершена (участник по ссылке)",
+            user_input=f"meeting_{meeting_id}",
         )
         await update.message.reply_text("Встреча не найдена или уже завершена.")
         return

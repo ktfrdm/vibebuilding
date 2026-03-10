@@ -154,6 +154,12 @@ def _build_log_text(event: str, **payload: Any) -> str:
         step = payload.get("step")
         if step:
             lines.append(f"📋 Шаг: {step}")
+        user_input = payload.get("user_input")
+        if user_input is not None and str(user_input).strip():
+            inp = str(user_input).strip()[:400]
+            if len(str(user_input).strip()) > 400:
+                inp += "…"
+            lines.append(f"✏️ Ввод: {inp}")
         lines.append(f"❌ {err_type}: {err_msg}")
         lines.append(f"🕒 {t}\n{_SEP}")
         return "\n".join(lines)

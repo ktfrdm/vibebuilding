@@ -1,16 +1,21 @@
 """Парсинг опций для встречи через OpenAI. Только LLM — в коде бота парсинга дат нет."""
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def is_slot_in_past(slot: dict) -> bool:
-    """Проверяет, относится ли слот к прошлому. datetime в формате YYYY-MM-DDThh:mm."""
+    """Проверяет, относится ли слот к прошлому. datetime в формате YYYY-MM-DDThh:mm.
+    Используется запас 2 часа: слот считается прошлым только если он раньше (now - 2 ч).
+    Так «сегодня в 17» по местному времени пользователя не отфильтруется из-за UTC на сервере.
+    """
     dt_str = slot.get("datetime") if isinstance(slot, dict) else None
     if not dt_str:
         return False  # без datetime не проверяем
     try:
         dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-        return dt.replace(tzinfo=None) < datetime.now()
+        dt_naive = dt.replace(tzinfo=None)
+        threshold = datetime.now() - timedelta(hours=2)
+        return dt_naive < threshold
     except (ValueError, TypeError):
         return False
 
@@ -32,6 +37,7 @@ from bot.config import OPENAI_API_KEY
 
 SLOTS_SYSTEM = """Ты парсишь опции для встречи. Организатор пишет, какие варианты времени предложить участникам.
 Текущая дата: {today}.
+Текущее время (UTC, для сравнения): {now_utc}. Слоты сравниваются с этим временем на сервере; «сегодня» = эта дата.
 
 Правила:
 1. **Разделители вариантов** — слоты могут быть перечислены:
@@ -62,12 +68,14 @@ def _call_llm(system: str, user: str) -> dict:
     if not OPENAI_API_KEY:
         return {"ok": False, "error": "OpenAI API key not configured"}
     client = OpenAI(api_key=OPENAI_API_KEY)
-    today = datetime.now().strftime("%d.%m.%Y, %A")
+    now = datetime.now()
+    today = now.strftime("%d.%m.%Y, %A")
+    now_utc = now.strftime("%Y-%m-%d %H:%M") + " UTC"
     try:
         r = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": system.format(today=today)},
+                {"role": "system", "content": system.format(today=today, now_utc=now_utc)},
                 {"role": "user", "content": user},
             ],
             temperature=0,
