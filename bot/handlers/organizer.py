@@ -635,57 +635,63 @@ async def send_meeting_summary(
     )
 
 
+def _participant_display_name(first_name: str) -> str:
+    """Имя для отображения в сводке (без HTML)."""
+    return (first_name or "Участник").strip() or "Участник"
+
+
 async def _send_meeting_summary_to_chat(
     bot, meeting_id: str, place: str, chat_id: int, ask_late_join: bool = False
 ) -> None:
-    """Отправляет итоги встречи в указанный чат."""
+    """Отправляет итоги встречи в указанный чат. Время — в формате Telegram (date_time) для добавления в календарь."""
     m = meetings.get(meeting_id)
     if not m:
         return
     slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
-    slot_label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
-    coming = []
-    pending = []
-    declined_tags = []
+    coming_names = []
+    pending_names = []
+    declined_names = []
     for k, p in participants.items():
         if k[0] != meeting_id:
             continue
-        user_id = k[1]
-        tag = participant_tag(user_id, p.first_name)
+        name = _participant_display_name(p.first_name)
         if p.status == "declined":
-            declined_tags.append(tag)
+            declined_names.append(name)
         elif p.status == "replied":
             if m.chosen_slot_id in p.chosen_slot_ids:
-                coming.append(tag)
+                coming_names.append(name)
             else:
-                pending.append(tag)
-    title_esc = html.escape(m.title)
-    place_esc = html.escape(place or "уточните в чате")
-    slot_esc = html.escape(slot_label)
-    lines = [
-        f"📋 Встречаемся!" + (f" «{title_esc}»" if m.title.strip() else ""),
-        "",
-        f"🕐 Время: {slot_esc}",
-        f"📍 Место: {place_esc}",
-        "",
-    ]
-    if coming:
-        lines.append("👍 Придут: " + ", ".join(coming))
-    if pending:
-        lines.append("❓ Ожидают ответа «Сможешь прийти?»: " + ", ".join(pending))
-    if declined_tags:
-        lines.append("👋 Не смогут: " + ", ".join(declined_tags))
-    if not coming and not pending and not declined_tags:
-        lines.append("Пока нет ответов.")
+                pending_names.append(name)
+    header_text, header_entities = format_meeting_notification(m, slot, place)
+    extra = []
+    if coming_names:
+        extra.append("👍 Придут: " + ", ".join(coming_names))
+    if pending_names:
+        extra.append("❓ Ожидают ответа «Сможешь прийти?»: " + ", ".join(pending_names))
+    if declined_names:
+        extra.append("👋 Не смогут: " + ", ".join(declined_names))
+    if not extra:
+        extra.append("Пока нет ответов.")
     if ask_late_join:
-        lines.append("")
-        lines.append("Придёшь?")
-    text = "\n".join(lines)
+        extra.append("")
+        extra.append("Придёшь?")
+    full_text = header_text + "\n\n" + "\n".join(extra)
     reply_markup = late_join_keyboard(meeting_id) if ask_late_join else None
     try:
-        await bot.send_message(
-            chat_id, text, parse_mode="HTML", reply_markup=reply_markup
-        )
+        if header_entities:
+            await bot.send_message(
+                chat_id,
+                full_text,
+                entities=header_entities,
+                reply_markup=reply_markup,
+            )
+        else:
+            await bot.send_message(
+                chat_id,
+                full_text,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
     except Exception as e:
         logger.warning("Не удалось отправить сводку в чат %s: %s", chat_id, e)
 

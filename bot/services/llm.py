@@ -43,8 +43,9 @@ SLOTS_SYSTEM = """Ты парсишь опции для встречи. Орга
 4. **День недели** (понедельник, вторник, … воскресенье): брать БЛИЖАЙШИЙ такой день от текущей даты в будущем.
 5. **Дата вида ДД.ММ** или **ДД.ММ в HH-MM**: один слот в указанную дату и время (год — текущий, если не указан).
 6. **Все слоты в будущем.** Нельзя назначить встречу в прошлом. Если дата в прошлом — {{"ok": false, "error": "Дата в прошлом."}}.
+7. **Порядок слотов** — после распознавания упорядочь слоты в хронологическом порядке: от ближайшего к дальнему (по полю datetime). Первый элемент массива slots — самый ранний вариант.
 
-Формат ответа: JSON. Каждый слот: {{"date": "Суббота 15 февраля", "time": "12:00", "datetime": "2026-02-15T12:00"}}. Поле datetime обязательно в формате YYYY-MM-DDThh:mm.
+Формат ответа: JSON. Каждый слот: {{"date": "Суббота 15 февраля", "time": "12:00", "datetime": "2026-02-15T12:00"}}. Поле datetime обязательно в формате YYYY-MM-DDThh:mm. Массив slots — отсортирован по возрастанию datetime.
 Верни: {{"ok": true, "slots": [...]}} или {{"ok": false, "error": "причина"}}.
 
 Примеры:
@@ -80,11 +81,30 @@ def _call_llm(system: str, user: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def _parse_datetime_for_sort(slot: dict) -> datetime | None:
+    """Извлекает datetime слота для сортировки. Возвращает None если нет или невалидно."""
+    dt_str = slot.get("datetime") if isinstance(slot, dict) else None
+    if not dt_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        return dt.replace(tzinfo=None)
+    except (ValueError, TypeError):
+        return None
+
+
 def parse_options(text: str) -> dict:
     """
     Парсит опции для встречи через LLM.
     Возвращает {ok: true, slots: [...]} или {ok: false, error: "..."}.
-    Слоты в формате [{date, time, datetime}, ...].
+    Слоты в формате [{date, time, datetime}, ...], отсортированы от ближайшего к дальнему.
     """
     user_msg = f"Организатор написал: {text}"
-    return _call_llm(SLOTS_SYSTEM, user_msg)
+    result = _call_llm(SLOTS_SYSTEM, user_msg)
+    if result.get("ok") and result.get("slots"):
+        slots = result["slots"]
+        # Упорядочиваем по datetime на случай если LLM не отсортировал
+        with_dt = [(_parse_datetime_for_sort(s), s) for s in slots]
+        with_dt.sort(key=lambda x: (x[0] is None, x[0] or datetime.max))
+        result["slots"] = [s for _, s in with_dt]
+    return result

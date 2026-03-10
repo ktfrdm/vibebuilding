@@ -7,10 +7,14 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from bot.formatters import format_meeting_notification, participant_tag, shift_entities, utf16_len
-from bot.handlers.organizer import send_meeting_summary
+from bot.handlers.organizer import (
+    send_meeting_summary,
+    _send_meeting_summary_to_chat as _organizer_send_meeting_summary_to_chat,
+)
 from bot.keyboards.inline import (
     organizer_choose_slot_keyboard,
     organizer_notification_keyboard,
+    organizer_summary_view_keyboard,
     participant_slots_keyboard,
 )
 from bot.storage import Meeting, ParticipantData, meetings, participants, participant_selection
@@ -183,17 +187,26 @@ def _build_organizer_summary_text_only(m: Meeting) -> str:
     """Текст сводки для просмотра (без кнопок выбора времени)."""
     counts = _count_slot_votes(m)
     ordered_slots, ordered_counts, idx_map = _order_slots_by_votes(m.slots, counts)
+    replied_count = sum(1 for k, p in participants.items() if k[0] == m.id and p.status == "replied")
     declined_tags = [
         participant_tag(k[1], participants[k].first_name)
         for k, p in participants.items()
         if k[0] == m.id and p.status == "declined"
     ]
     title_esc = html.escape(m.title)
-    lines = [f"{title_esc} — ответы:", ""]
+    lines = [title_esc, ""]
+    if replied_count == 1:
+        lines.append("Ответил 1 человек.")
+    elif replied_count and replied_count <= 4:
+        lines.append(f"Ответили {replied_count} человека.")
+    elif replied_count:
+        lines.append(f"Ответили {replied_count} человек.")
+    else:
+        lines.append("Пока никто не ответил.")
+    lines.append("")
     if ordered_counts:
-        lines.append("📊 По слотам (удобно/всего ответивших):")
+        lines.append("📊 Результаты:")
         for i, s in enumerate(ordered_slots):
-            ok, tot = ordered_counts[i] if i < len(ordered_counts) else (0, 0)
             label = html.escape(f"{s.get('date', '')} {s.get('time', '')}".strip())
             orig_idx = idx_map[i] if i < len(idx_map) else i
             voters = [
@@ -201,11 +214,18 @@ def _build_organizer_summary_text_only(m: Meeting) -> str:
                 for k, p in participants.items()
                 if k[0] == m.id and p.status == "replied" and orig_idx in p.chosen_slot_ids
             ]
-            voters_str = ", ".join(voters) if voters else "—"
-            lines.append(f"  • {label}: {ok}/{tot}")
-            lines.append(f"    Кто: {voters_str}")
+            if voters:
+                lines.append(f"  {label}")
+                lines.append(f"  Выбрали: {', '.join(voters)}")
+            else:
+                lines.append(f"  {label}")
+                lines.append("  Пока никто не выбрал этот вариант")
+            lines.append("")
+        if lines and lines[-1] == "":
+            lines.pop()
     if declined_tags:
-        lines.append(f"\nОтказались: {', '.join(declined_tags)}")
+        lines.append("")
+        lines.append(f"Не смогут прийти: {', '.join(declined_tags)}")
     return "\n".join(lines)
 
 
@@ -226,31 +246,29 @@ def _build_organizer_summary_text_and_keyboard(m: Meeting) -> tuple[str, object]
 async def _send_organizer_summary_to_chat(bot, chat_id: int, m: Meeting) -> None:
     """Отправляет сводку голосования организатору в указанный чат (с кнопками выбора времени)."""
     if m.status == "time_chosen":
-        slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
-        label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
-        await bot.send_message(chat_id, f"Встреча уже назначена: {label}")
+        place = m.place or "уточните в чате"
+        await _organizer_send_meeting_summary_to_chat(bot, m.id, place, chat_id, ask_late_join=False)
         return
     text, markup = _build_organizer_summary_text_and_keyboard(m)
     await bot.send_message(chat_id, text, reply_markup=markup, parse_mode="HTML")
 
 
 async def _send_organizer_summary_view_only(bot, chat_id: int, m: Meeting) -> None:
-    """Отправляет только текст сводки (просмотр ответивших), без кнопок выбора времени."""
+    """Отправляет текст сводки (просмотр ответивших) и инлайн-кнопку «Выбрать время»."""
     if m.status == "time_chosen":
-        slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
-        label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
-        await bot.send_message(chat_id, f"Встреча уже назначена: {label}")
+        place = m.place or "уточните в чате"
+        await _organizer_send_meeting_summary_to_chat(bot, m.id, place, chat_id, ask_late_join=False)
         return
     text = _build_organizer_summary_text_only(m)
-    await bot.send_message(chat_id, text, parse_mode="HTML")
+    markup = organizer_summary_view_keyboard(m.id)
+    await bot.send_message(chat_id, text, reply_markup=markup, parse_mode="HTML")
 
 
 async def _send_organizer_choose_time(bot, chat_id: int, m: Meeting) -> None:
     """Отправляет сообщение с кнопками выбора итогового времени."""
     if m.status == "time_chosen":
-        slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
-        label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
-        await bot.send_message(chat_id, f"Встреча уже назначена: {label}")
+        place = m.place or "уточните в чате"
+        await _organizer_send_meeting_summary_to_chat(bot, m.id, place, chat_id, ask_late_join=False)
         return
     markup = _build_organizer_choose_time_keyboard(m)
     await bot.send_message(

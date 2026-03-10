@@ -54,8 +54,12 @@ def participant_slots_keyboard(slots: list[Slot], meeting_id: str, chosen_ids: s
             callback_data=f"slot_toggle:{meeting_id}:{i}"
         )])
     rows.append([InlineKeyboardButton(text="😔 Увы, не смогу", callback_data=f"decline:{meeting_id}")])
-    # Кнопка «Готово» выделена эмодзи и формулировкой, т.к. цвет inline-кнопок в API не задаётся
-    rows.append([InlineKeyboardButton(text="📤 Готово — отправить ответ", callback_data=f"done:{meeting_id}")])
+    # Голубая кнопка «Готово» (style=primary в Bot API 9.4+)
+    rows.append([InlineKeyboardButton(
+        text="📤 Готово — отправить ответ",
+        callback_data=f"done:{meeting_id}",
+        api_kwargs={"style": "primary"},
+    )])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -126,4 +130,11 @@ def organizer_notification_keyboard(meeting_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="📋 Статус", callback_data=f"show_svodka:{meeting_id}"),
             InlineKeyboardButton(text="⏰ Выбрать время", callback_data=f"choose_time:{meeting_id}"),
         ],
+    ])
+
+
+def organizer_summary_view_keyboard(meeting_id: str) -> InlineKeyboardMarkup:
+    """Одна кнопка под сводкой «только просмотр»: переход к выбору времени."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⏰ Выбрать время", callback_data=f"choose_time:{meeting_id}")],
     ])
