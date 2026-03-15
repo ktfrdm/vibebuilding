@@ -90,9 +90,13 @@ async def error_handler(update, context):
 
 def main():
     processor = PerUserUpdateProcessor(max_concurrent_updates=32)
+    # Увеличенные таймауты: на Railway первый исходящий запрос к api.telegram.org может идти долго (ConnectTimeout).
     app = (
         ApplicationBuilder()
         .token(BOT_TOKEN)
+        .connect_timeout(30.0)
+        .read_timeout(30.0)
+        .write_timeout(30.0)
         .post_init(post_init)
         .concurrent_updates(processor)
         .build()
@@ -166,14 +170,15 @@ def main():
         url_path = BOT_TOKEN
         webhook_url = f"{base_url}/{url_path}"
         logging.info("Starting webhook on port %s with URL %s", port, webhook_url)
-        # Небольшая задержка перед setWebhook, чтобы при частых рестартах (Railway) не получать 429 от Telegram.
-        time.sleep(2)
+        # Задержка перед стартом: даём контейнеру и сети стабилизироваться, снижаем риск ConnectTimeout к Telegram.
+        time.sleep(5)
         app.run_webhook(
             listen="0.0.0.0",
             port=port,
             url_path=url_path,
             webhook_url=webhook_url,
             drop_pending_updates=True,
+            bootstrap_retries=5,
         )
     else:
         logging.info("Starting bot in polling mode")
