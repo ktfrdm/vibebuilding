@@ -17,7 +17,14 @@ from bot.keyboards.inline import (
     organizer_summary_view_keyboard,
     participant_slots_keyboard,
 )
-from bot.storage import Meeting, ParticipantData, meetings, participants, participant_selection
+from bot.storage import (
+    Meeting,
+    ParticipantData,
+    get_participants_for_meeting,
+    meetings,
+    participants,
+    participant_selection,
+)
 from bot.telegram_logger import send_log_event
 
 logger = logging.getLogger(__name__)
@@ -160,11 +167,11 @@ async def handle_participant_start(update: Update, context: ContextTypes.DEFAULT
 
 
 def _count_slot_votes(m: Meeting) -> list[tuple[int, int]]:
-    replied_keys = [k for k, p in participants.items() if k[0] == m.id and p.status == "replied"]
-    total = len(replied_keys)
+    replied = [(k, p) for k, p in get_participants_for_meeting(m.id) if p.status == "replied"]
+    total = len(replied)
     counts = []
     for i in range(len(m.slots)):
-        ok = sum(1 for k in replied_keys if i in participants[k].chosen_slot_ids)
+        ok = sum(1 for _k, p in replied if i in p.chosen_slot_ids)
         counts.append((ok, total))
     return counts
 
@@ -188,11 +195,11 @@ def _build_organizer_summary_text_only(m: Meeting) -> str:
     """Текст сводки для просмотра (без кнопок выбора времени)."""
     counts = _count_slot_votes(m)
     ordered_slots, ordered_counts, idx_map = _order_slots_by_votes(m.slots, counts)
-    replied_count = sum(1 for k, p in participants.items() if k[0] == m.id and p.status == "replied")
+    replied_count = sum(1 for _k, p in get_participants_for_meeting(m.id) if p.status == "replied")
     declined_tags = [
-        participant_tag(k[1], participants[k].first_name)
-        for k, p in participants.items()
-        if k[0] == m.id and p.status == "declined"
+        participant_tag(k[1], p.first_name)
+        for k, p in get_participants_for_meeting(m.id)
+        if p.status == "declined"
     ]
     title_esc = html.escape(m.title)
     lines = [title_esc, ""]
@@ -211,9 +218,9 @@ def _build_organizer_summary_text_only(m: Meeting) -> str:
             label = html.escape(f"{s.get('date', '')} {s.get('time', '')}".strip())
             orig_idx = idx_map[i] if i < len(idx_map) else i
             voters = [
-                participant_tag(k[1], participants[k].first_name)
-                for k, p in participants.items()
-                if k[0] == m.id and p.status == "replied" and orig_idx in p.chosen_slot_ids
+                participant_tag(k[1], p.first_name)
+                for k, p in get_participants_for_meeting(m.id)
+                if p.status == "replied" and orig_idx in p.chosen_slot_ids
             ]
             if voters:
                 lines.append(f"  {label}")

@@ -13,3 +13,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 DEBUG = os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
+
+# Supabase (опционально; если не заданы, бот использует in-memory хранилище)
+SUPABASE_URL = os.getenv("SUPABASE_URL") or None
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or None

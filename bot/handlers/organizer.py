@@ -24,6 +24,8 @@ from bot.services.llm import filter_past_slots, parse_options
 from bot.storage import (
     Meeting,
     clear_user_state,
+    get_meetings_by_creator,
+    get_participants_for_meeting,
     get_user_state,
     get_user_step,
     meetings,
@@ -102,7 +104,7 @@ async def cmd_svodka(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             await send_meeting_summary(context.bot, mid, chat_id, user_id=uid)
         return
 
-    my_meetings = [m for m in meetings.values() if m.creator_user_id == uid]
+    my_meetings = get_meetings_by_creator(uid)
     if not my_meetings:
         u = update.effective_user
         await send_log_event(
@@ -118,7 +120,7 @@ async def cmd_svodka(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         )
         await update.message.reply_text("У тебя пока нет встреч. Нажми «Давай соберёмся!» чтобы создать.")
         return
-    m = my_meetings[-1]
+    m = my_meetings[0]
     if m.status == "time_chosen":
         await send_meeting_summary(context.bot, m.id, chat_id)
     else:
@@ -317,11 +319,12 @@ async def _handle_place(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
         return
     place = (update.message.text or "").strip() or "уточните в чате"
     m.place = place
+    meetings[meeting_id] = m
     clear_user_state(uid)
     await _send_notifications(context.bot, meeting_id, place)
     started = organizer_flow_start.pop(uid, None)
     duration_sec = (time.time() - started) if started else None
-    participants_count = sum(1 for k in participants if k[0] == meeting_id and participants[k].status == "replied")
+    participants_count = sum(1 for _k, p in get_participants_for_meeting(meeting_id) if p.status == "replied")
     await send_log_event(
         context.bot,
         "organizer_notifications_sent",
@@ -482,6 +485,7 @@ async def choose_slot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
     m.chosen_slot_id = slot_idx
     m.status = "time_chosen"
+    meetings[meeting_id] = m
     set_user_state(uid, "place", {"meeting_id": meeting_id})
     chat_id = query.message.chat.id if query.message else 0
     await query.edit_message_text(
@@ -511,12 +515,13 @@ async def place_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await query.answer()
         return
     m.place = "уточните в чате"
+    meetings[meeting_id] = m
     clear_user_state(uid)
     await _send_notifications(context.bot, meeting_id, m.place)
     creator_uid = m.creator_user_id
     started = organizer_flow_start.pop(creator_uid, None)
     duration_sec = (time.time() - started) if started else None
-    participants_count = sum(1 for k in participants if k[0] == meeting_id and participants[k].status == "replied")
+    participants_count = sum(1 for _k, p in get_participants_for_meeting(meeting_id) if p.status == "replied")
     await send_log_event(
         context.bot,
         "organizer_notifications_sent",
@@ -562,7 +567,7 @@ async def main_svodka_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     uid = _user_id(update)
     chat_id = query.message.chat.id if query.message else 0
-    my_meetings = [m for m in meetings.values() if m.creator_user_id == uid]
+    my_meetings = get_meetings_by_creator(uid)
     if not my_meetings:
         await context.bot.send_message(
             chat_id,
@@ -570,7 +575,7 @@ async def main_svodka_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=start_inline_keyboard(),
         )
         return
-    m = my_meetings[-1]
+    m = my_meetings[0]
     from bot.handlers.participant import _send_organizer_summary_to_chat
     await _send_organizer_summary_to_chat(context.bot, chat_id, m)
 
@@ -671,9 +676,7 @@ async def _send_meeting_summary_to_chat(
     coming_names = []
     pending_names = []
     declined_names = []
-    for k, p in participants.items():
-        if k[0] != meeting_id:
-            continue
+    for _k, p in get_participants_for_meeting(meeting_id):
         name = _participant_display_name(p.first_name)
         if p.status == "declined":
             declined_names.append(name)
@@ -731,10 +734,10 @@ async def _send_notifications(bot, meeting_id: str, place: str) -> None:
     slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
     notification_text, entities = format_meeting_notification(m, slot, place)
     parse_mode = None if entities else "HTML"
-    replied = [k for k, p in participants.items() if k[0] == meeting_id and p.status == "replied"]
-    for k in replied:
+    replied = [(k, p) for k, p in get_participants_for_meeting(meeting_id) if p.status == "replied"]
+    for k, p in replied:
         user_id = k[1]
-        sel = participants[k].chosen_slot_ids
+        sel = p.chosen_slot_ids
         if m.chosen_slot_id in sel:
             await bot.send_message(
                 user_id,
@@ -743,7 +746,8 @@ async def _send_notifications(bot, meeting_id: str, place: str) -> None:
                 parse_mode=parse_mode,
             )
         else:
-            participants[k].pending_confirm = True
+            p.pending_confirm = True
+            participants[k] = p
             confirm_text = (
                 f"{notification_text}\n\n"
                 f"❓ Ты выбирал другие слоты. Сможешь прийти?"

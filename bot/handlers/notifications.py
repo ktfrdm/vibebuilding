@@ -84,6 +84,7 @@ async def confirm_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     # Добавляем выбранный слот, чтобы участник попадал в «Придут» при открытии сводки
     if m.chosen_slot_id is not None and m.chosen_slot_id not in p.chosen_slot_ids:
         p.chosen_slot_ids = list(p.chosen_slot_ids) + [m.chosen_slot_id]
+    participants[key] = p
     slot = m.slots[m.chosen_slot_id] if m.chosen_slot_id is not None else {}
     place = m.place or "уточните в чате"
     text, entities = format_meeting_notification(m, slot, place)
@@ -123,6 +124,7 @@ async def confirm_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
     p.pending_confirm = False
     p.status = "declined"
+    participants[key] = p
     await query.edit_message_text("😊 Жаль, надеемся увидеться в следующий раз!")
     await _notify_organizer_confirm(
         context.bot, meeting_id, user_id, p.first_name, confirmed=False
