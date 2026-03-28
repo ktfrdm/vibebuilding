@@ -169,7 +169,7 @@ def main():
             base_url = "https://" + base_url
         url_path = BOT_TOKEN
         webhook_url = f"{base_url}/{url_path}"
-        logging.info("Starting webhook on port %s with URL %s", port, webhook_url)
+        logging.info("Starting webhook on port %s with URL %s/***", port, base_url)
         # Задержка перед стартом: даём контейнеру и сети стабилизироваться, снижаем риск ConnectTimeout к Telegram.
         time.sleep(5)
         app.run_webhook(

@@ -1,15 +1,20 @@
 """Handler /start — сброс состояния, главное меню или deep link."""
+import logging
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from bot.keyboards.inline import start_inline_keyboard_first
 from bot.storage import clear_user_state
 
+logger = logging.getLogger(__name__)
+
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message:
         return
     user_id = update.effective_user.id if update.effective_user else 0
+    logger.info("cmd_start: user_id=%s, args=%s", user_id, context.args or [])
     args = context.args or []
     arg0 = (args[0] or "").strip() if args else ""
 

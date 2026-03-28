@@ -18,6 +18,9 @@
 **03. Scenarios**
 - **[USER_JOBS.md](./product-description/03.%20Scenarios/USER_JOBS.md)** - Джобы пользователя: путь организатора и путь участника
 - **[USER_STORIES.md](./product-description/03.%20Scenarios/USER_STORIES.md)** - Пользовательские истории и сценарии использования
+- **[BOT_FLOW_MVP.md](./product-description/03.%20Scenarios/BOT_FLOW_MVP.md)** - Пошаговый поток MVP (организатор и участник)
+- **[ORGANIZER_FLOW_PRIVATE_VS_GROUP.md](./product-description/03.%20Scenarios/ORGANIZER_FLOW_PRIVATE_VS_GROUP.md)** - Личка vs группа для организатора (варианты A, B1a, B1b)
+- **[ORGANIZER_FLOW_IMPLEMENTATION_STATUS.md](./product-description/03.%20Scenarios/ORGANIZER_FLOW_IMPLEMENTATION_STATUS.md)** - Продуктовый выбор B1b, приоритет лички, что сделано в коде и что отложено
 
 **04. Backlog**
 - **[PRODUCT_BACKLOG.md](./product-description/04.%20Backlog/PRODUCT_BACKLOG.md)** - Идеи на будущее с комментариями

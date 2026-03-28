@@ -2,7 +2,7 @@
 
 **План и спецификация** для реализации MVP Telegram-бота для согласования встреч. Код удалён — реализация с нуля по [PLAN_IMPLEMENTATION.md](PLAN_IMPLEMENTATION.md).
 
-Связанные документы: [BOT_DEV_SUMMARY.md](BOT_DEV_SUMMARY.md), [BOT_FLOW_MVP.md](../03.%20Scenarios/BOT_FLOW_MVP.md), [BOT_VOICE_AND_TEXTS.md](../03.%20Scenarios/BOT_VOICE_AND_TEXTS.md).
+Связанные документы: [BOT_DEV_SUMMARY.md](BOT_DEV_SUMMARY.md), [BOT_FLOW_MVP.md](../03.%20Scenarios/BOT_FLOW_MVP.md), [BOT_VOICE_AND_TEXTS.md](../03.%20Scenarios/BOT_VOICE_AND_TEXTS.md), [ORGANIZER_FLOW_IMPLEMENTATION_STATUS.md](../03.%20Scenarios/ORGANIZER_FLOW_IMPLEMENTATION_STATUS.md).
 
 ---
 

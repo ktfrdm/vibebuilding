@@ -20,6 +20,11 @@ from bot.keyboards.inline import (
     slots_confirm_keyboard,
     start_inline_keyboard,
 )
+from bot.chat_context import (
+    ORGANIZER_TITLE_PROMPT,
+    append_group_organizer_hint,
+    is_group_like_chat,
+)
 from bot.services.llm import filter_past_slots, parse_options
 from bot.storage import (
     Meeting,
@@ -148,8 +153,9 @@ async def create_meeting_start(update: Update, context: ContextTypes.DEFAULT_TYP
         username=u.username if u else None,
         first_name=u.first_name if u else None,
     )
+    chat = update.effective_chat
     await update.message.reply_text(
-        "💬 Как назовём нашу встречу? Например: «Кофе», «Ужин в пятницу». Можно пропустить!",
+        append_group_organizer_hint(ORGANIZER_TITLE_PROMPT, chat),
         reply_markup=skip_keyboard(),
     )
 
@@ -180,10 +186,16 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     elif step == "place":
         await _handle_place(update, context, uid)
     else:
-        await msg.reply_text(
-            "Создать встречу или посмотреть статус:",
-            reply_markup=start_inline_keyboard(),
-        )
+        if is_group_like_chat(msg.chat):
+            await msg.reply_text(
+                "Чтобы начать встречу в этом чате, нажми «Давай соберёмся!» у сообщения бота выше "
+                "или ответь на сообщение бота командой /start.",
+            )
+        else:
+            await msg.reply_text(
+                "Создать встречу или посмотреть статус:",
+                reply_markup=start_inline_keyboard(),
+            )
 
 
 async def _handle_title(update: Update, uid: int) -> None:
@@ -194,7 +206,7 @@ async def _handle_title(update: Update, uid: int) -> None:
     logger.info("_handle_title: uid=%s title=%r", uid, title[:50] if title else None)
     update_user_state(uid, title=title)
     set_user_state(uid, "slots", {"title": title})
-    await msg.reply_text(SLOTS_PROMPT)
+    await msg.reply_text(append_group_organizer_hint(SLOTS_PROMPT, msg.chat))
 
 
 async def _handle_slots(update: Update, context: ContextTypes.DEFAULT_TYPE, uid: int) -> None:
@@ -283,8 +295,9 @@ async def _handle_slots(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
     set_user_state(uid, "slots_confirm", {"title": title, "slots": slots_list})
     lines = [f"{i+1}. {s.get('date', '')} {s.get('time', '')}".strip() for i, s in enumerate(slots_list)]
     header = "Некоторые слоты были в прошлом — убрал. Вот что получается:\n" if past else "✨ Отлично! Вот что получается:\n"
+    body = header + "\n".join(lines) + "\n\nПодходит?"
     await update.message.reply_text(
-        header + "\n".join(lines) + "\n\nПодходит?",
+        append_group_organizer_hint(body, update.message.chat),
         reply_markup=slots_confirm_keyboard(),
     )
 
@@ -347,7 +360,8 @@ async def skip_title(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await query.answer()
         return
     set_user_state(uid, "slots", {"title": "Встреча"})
-    await query.edit_message_text(SLOTS_PROMPT)
+    chat = query.message.chat if query.message else None
+    await query.edit_message_text(append_group_organizer_hint(SLOTS_PROMPT, chat))
     await query.answer()
 
 
@@ -432,7 +446,8 @@ async def slots_edit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     data = state.get("data") or {}
     title = data.get("title", "Встреча")
     set_user_state(uid, "slots", {"title": title})
-    await query.edit_message_text(SLOTS_PROMPT)
+    chat = query.message.chat if query.message else None
+    await query.edit_message_text(append_group_organizer_hint(SLOTS_PROMPT, chat))
     await query.answer()
 
 
@@ -488,8 +503,12 @@ async def choose_slot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     meetings[meeting_id] = m
     set_user_state(uid, "place", {"meeting_id": meeting_id})
     chat_id = query.message.chat.id if query.message else 0
+    place_chat = query.message.chat if query.message else None
     await query.edit_message_text(
-        "📍 Где собираемся? Напиши место или нажми «Пропустить» — уточните потом в чате",
+        append_group_organizer_hint(
+            "📍 Где собираемся? Напиши место или нажми «Пропустить» — уточните потом в чате",
+            place_chat,
+        ),
         reply_markup=confirm_place_keyboard(),
     )
     await query.answer()
@@ -552,9 +571,10 @@ async def start_meeting_callback(update: Update, context: ContextTypes.DEFAULT_T
         username=u.username if u else None,
         first_name=u.first_name if u else None,
     )
+    chat = query.message.chat if query.message else None
     await context.bot.send_message(
         chat_id,
-        "💬 Как назовём нашу встречу? Например: «Кофе», «Ужин в пятницу». Можно пропустить!",
+        append_group_organizer_hint(ORGANIZER_TITLE_PROMPT, chat),
         reply_markup=skip_keyboard(),
     )
 
