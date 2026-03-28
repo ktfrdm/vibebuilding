@@ -54,15 +54,16 @@ def format_meeting_notification(
     slot_label = f"{slot.get('date', '')} {slot.get('time', '')}".strip()
     slot_esc = html.escape(slot_label)
 
+    # Один эмодзи на сообщение — акцент на «встречаемся».
     text = (
-        f"📋 Встречаемся!{title_part}\n\n"
-        f"🕐 Время: {slot_esc}\n"
-        f"📍 Место: {place_esc}"
+        f"🗓 Встречаемся!{title_part}\n\n"
+        f"Время: {slot_esc}\n"
+        f"Место: {place_esc}"
     )
     unix = slot_unix_time(slot)
     if unix is None or not slot_label:
         return (text, None)
-    prefix = f"📋 Встречаемся!{title_part}\n\n🕐 Время: "
+    prefix = f"🗓 Встречаемся!{title_part}\n\nВремя: "
     offset = utf16_len(prefix)
     length = utf16_len(slot_label)
     entity = MessageEntity(

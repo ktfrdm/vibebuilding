@@ -213,7 +213,7 @@ def _build_organizer_summary_text_only(m: Meeting) -> str:
         lines.append("Пока никто не ответил.")
     lines.append("")
     if ordered_counts:
-        lines.append("📊 Результаты:")
+        lines.append("Результаты:")
         for i, s in enumerate(ordered_slots):
             label = html.escape(f"{s.get('date', '')} {s.get('time', '')}".strip())
             orig_idx = idx_map[i] if i < len(idx_map) else i
@@ -473,7 +473,7 @@ async def late_join_yes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     slot = m.slots[m.chosen_slot_id] or {}
     place = m.place or "уточните в чате"
     text_part, entities = format_meeting_notification(m, slot, place)
-    prefix = "👍 Записал!\n\n"
+    prefix = "Записал!\n\n"
     full_text = prefix + text_part
     if entities:
         entities = shift_entities(entities, utf16_len(prefix))

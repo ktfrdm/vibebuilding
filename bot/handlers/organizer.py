@@ -15,6 +15,7 @@ from bot.keyboards.inline import (
     confirm_place_keyboard,
     invite_keyboard,
     invite_keyboard_for_organizer,
+    invite_keyboard_private_organizer,
     late_join_keyboard,
     skip_keyboard,
     slots_confirm_keyboard,
@@ -42,7 +43,7 @@ from bot.storage import (
 from bot.telegram_logger import send_log_event
 
 SLOTS_PROMPT = (
-    "Какие варианты времени предложить участникам? Напиши одним сообщением, "
+    "🕐 Какие варианты времени предложить участникам? Напиши одним сообщением, "
     "например: «суббота 12:00, 15:00, 18:00» или «в эту субботу», «25 февраля вечером» — поймём"
 )
 
@@ -123,7 +124,9 @@ async def cmd_svodka(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             error_type="NoMeetingsYet",
             error_message="Организатор открыл статус, встреч пока нет",
         )
-        await update.message.reply_text("У тебя пока нет встреч. Нажми «Давай соберёмся!» чтобы создать.")
+        await update.message.reply_text(
+            "📭 У тебя пока нет встреч. Нажми «Давай соберёмся!» внизу или в меню, чтобы создать."
+        )
         return
     m = my_meetings[0]
     if m.status == "time_chosen":
@@ -171,7 +174,7 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.info("process_text: uid=%s step=%s text=%r", uid, step, text[:50] if text else None)
     if not text:
         if step in ("title", "slots", "place"):
-            await msg.reply_text("Отправь, пожалуйста, текст.")
+            await msg.reply_text("✏️ Отправь, пожалуйста, текст.")
         return
     if text in START_BUTTONS:
         await create_meeting_start(update, context)
@@ -188,12 +191,12 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     else:
         if is_group_like_chat(msg.chat):
             await msg.reply_text(
-                "Чтобы начать встречу в этом чате, нажми «Давай соберёмся!» у сообщения бота выше "
+                "💡 Чтобы начать встречу в этом чате, нажми «Давай соберёмся!» у сообщения бота выше "
                 "или ответь на сообщение бота командой /start.",
             )
         else:
             await msg.reply_text(
-                "Создать встречу или посмотреть статус:",
+                "👇 Создать встречу или посмотреть статус:",
                 reply_markup=start_inline_keyboard(),
             )
 
@@ -294,7 +297,11 @@ async def _handle_slots(update: Update, context: ContextTypes.DEFAULT_TYPE, uid:
     update_user_state(uid, slots=slots_list)
     set_user_state(uid, "slots_confirm", {"title": title, "slots": slots_list})
     lines = [f"{i+1}. {s.get('date', '')} {s.get('time', '')}".strip() for i, s in enumerate(slots_list)]
-    header = "Некоторые слоты были в прошлом — убрал. Вот что получается:\n" if past else "✨ Отлично! Вот что получается:\n"
+    header = (
+        "⚠️ Некоторые слоты были в прошлом — убрал. Вот что получается:\n"
+        if past
+        else "✨ Отлично! Вот что получается:\n"
+    )
     body = header + "\n".join(lines) + "\n\nПодходит?"
     await update.message.reply_text(
         append_group_organizer_hint(body, update.message.chat),
@@ -398,9 +405,16 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     mid = meeting_id.replace("m_", "") if meeting_id.startswith("m_") else meeting_id
     link = f"https://t.me/{username}?start=meeting_{mid}"
     invite_text = (
-        f"📅 Планируется встреча «{title}».\n\n"
+        f"📣 Планируется встреча «{title}».\n\n"
         f"{link}\n\n"
         f"Нажми кнопку ниже, чтобы ответить и выбрать удобное время."
+    )
+    invite_text_private_organizer = (
+        f"✉️ Встреча «{title}» готова — осталось позвать людей.\n\n"
+        f"Нажми «Переслать приглашение» и выбери чат или собеседника: "
+        f"им уйдёт короткое сообщение со ссылкой, по ней сразу открывается выбор удобного времени.\n\n"
+        f"{link}\n\n"
+        f"«Ответить на приглашение» — чтобы пройти тот же путь, что и участник."
     )
     if is_group:
         await query.edit_message_text(
@@ -418,12 +432,8 @@ async def slots_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     else:
         await query.edit_message_text(
-            "✅ Готово! Перешли участникам сообщение ниже.",
-        )
-        await bot.send_message(
-            chat_id,
-            invite_text,
-            reply_markup=invite_keyboard(meeting_id, username, title=title),
+            invite_text_private_organizer,
+            reply_markup=invite_keyboard_private_organizer(meeting_id, username, title=title),
         )
     await send_log_event(
         bot,
@@ -548,7 +558,7 @@ async def place_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         participants_count=participants_count,
         duration_sec=duration_sec,
     )
-    await query.edit_message_text("Готово! Уведомления отправлены.")
+    await query.edit_message_text("✅ Готово! Уведомления отправлены.")
     await query.answer()
 
 
@@ -591,7 +601,7 @@ async def main_svodka_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if not my_meetings:
         await context.bot.send_message(
             chat_id,
-            "У тебя пока нет встреч. Нажми «Давай соберёмся!», чтобы создать.",
+            "📭 У тебя пока нет встреч. Нажми «Давай соберёмся!», чтобы создать.",
             reply_markup=start_inline_keyboard(),
         )
         return
@@ -661,7 +671,7 @@ async def organizer_non_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     uid = _user_id(update)
     if get_user_step(uid) in ("title", "slots", "place"):
-        await update.message.reply_text("Отправь, пожалуйста, текст.")
+        await update.message.reply_text("✏️ Отправь, пожалуйста, текст.")
 
 
 async def send_meeting_summary(
@@ -708,11 +718,11 @@ async def _send_meeting_summary_to_chat(
     header_text, header_entities = format_meeting_notification(m, slot, place)
     extra = []
     if coming_names:
-        extra.append("👍 Придут: " + ", ".join(coming_names))
+        extra.append("Придут: " + ", ".join(coming_names))
     if pending_names:
-        extra.append("❓ Ожидают ответа «Сможешь прийти?»: " + ", ".join(pending_names))
+        extra.append("Ожидают ответа «Сможешь прийти?»: " + ", ".join(pending_names))
     if declined_names:
-        extra.append("👋 Не смогут: " + ", ".join(declined_names))
+        extra.append("Не смогут: " + ", ".join(declined_names))
     if not extra:
         extra.append("Пока нет ответов.")
     if ask_late_join:
@@ -770,7 +780,7 @@ async def _send_notifications(bot, meeting_id: str, place: str) -> None:
             participants[k] = p
             confirm_text = (
                 f"{notification_text}\n\n"
-                f"❓ Ты выбирал другие слоты. Сможешь прийти?"
+                f"Ты выбирал другие слоты. Сможешь прийти?"
             )
             await bot.send_message(
                 user_id,
